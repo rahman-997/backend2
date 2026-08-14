@@ -11,10 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
     "express": "^5.1.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "supertest": "^7.1.4",
