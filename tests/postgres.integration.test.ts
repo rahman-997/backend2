@@ -8,8 +8,12 @@ describe("PostgreSQL integration", () => {
 
   run("when DATABASE_URL is configured", () => {
     const pool = new Pool({ connectionString: databaseUrl });
+    let insertedName: string | undefined;
 
     afterAll(async () => {
+      if (insertedName) {
+        await pool.query("DELETE FROM venues WHERE name = $1", [insertedName]);
+      }
       await pool.end();
     });
 
@@ -22,6 +26,8 @@ describe("PostgreSQL integration", () => {
 
     it("enforces the unique venue name constraint", async () => {
       const name = `ci-${randomUUID()}`;
+      insertedName = name;
+
       await pool.query(
         "INSERT INTO venues (id, name, address, capacity, contact_email, created_at) VALUES ($1, $2, $3, $4, $5, NOW())",
         [randomUUID(), name, "CI", 100, `ci-${randomUUID()}@example.com`],
