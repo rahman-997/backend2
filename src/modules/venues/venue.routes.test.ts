@@ -127,15 +127,22 @@ describe("/v1/venues", () => {
   });
 
   it("supports sorting by name and rejects unknown sort fields", async () => {
-    for (const venue of [
-      { name: "Zulu Hall", address: "A", capacity: 100, contactEmail: "zulu@example.com" },
-      { name: "Alpha Hall", address: "B", capacity: 200, contactEmail: "alpha@example.com" },
-    ]) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+    const prefix = `NameSort-${crypto.randomUUID()}`;
+    for (const suffix of ["Zulu", "Alpha", "Bravo"]) {
+      const venue = {
+        name: `${prefix}-${suffix}`,
+        address: suffix,
+        capacity: 100,
+        contactEmail: `${suffix.toLowerCase()}-${crypto.randomUUID()}@example.com`,
+      };
+      expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+    }
 
-    const sorted = await request(app).get("/v1/venues?sortBy=name&order=asc&limit=100");
+    const sorted = await request(app).get(`/v1/venues?search=${prefix}&sortBy=name&order=asc&limit=100`);
     expect(sorted.status).toBe(200);
     const names = sorted.body.data.map((v: { name: string }) => v.name);
     expect(names).toEqual([...names].sort((a: string, b: string) => a.localeCompare(b)));
+    expect(names).toHaveLength(3);
 
     expect((await request(app).get("/v1/venues?sortBy=sql_injection")).status).toBe(400);
   });
