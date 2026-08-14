@@ -9,15 +9,15 @@ export const validate = <T extends ZodType>(schema: T): RequestHandler => {
 };
 
 export const validateQuery = <T extends ZodType>(schema: T): RequestHandler => {
-  return (req, _res, next) => {
-    req.query = schema.parse(req.query) as typeof req.query;
+  return (req, res, next) => {
+    res.locals.validatedQuery = schema.parse(req.query);
     next();
   };
 };
 
 export const validateParams = <T extends ZodType>(schema: T): RequestHandler => {
-  return (req, _res, next) => {
-    req.params = schema.parse(req.params) as typeof req.params;
+  return (req, res, next) => {
+    res.locals.validatedParams = schema.parse(req.params);
     next();
   };
 };
