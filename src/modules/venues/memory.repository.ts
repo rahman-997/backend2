@@ -19,7 +19,16 @@ export class MemoryVenueRepository implements VenueRepository {
     if (search) items = items.filter((v) => `${v.name} ${v.address}`.toLocaleLowerCase().includes(search));
     if (query.minCapacity !== undefined) items = items.filter((v) => v.capacity >= query.minCapacity!);
     if (query.maxCapacity !== undefined) items = items.filter((v) => v.capacity <= query.maxCapacity!);
-    items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    const direction = query.order === "asc" ? 1 : -1;
+    items.sort((a, b) => {
+      const left = query.sortBy === "capacity" ? a.capacity : query.sortBy === "name" ? a.name : query.sortBy === "address" ? a.address : a.createdAt;
+      const right = query.sortBy === "capacity" ? b.capacity : query.sortBy === "name" ? b.name : query.sortBy === "address" ? b.address : b.createdAt;
+      if (left < right) return -1 * direction;
+      if (left > right) return 1 * direction;
+      return a.id.localeCompare(b.id);
+    });
+
     const total = items.length;
     const start = (query.page - 1) * query.limit;
     return { data: items.slice(start, start + query.limit), total };
