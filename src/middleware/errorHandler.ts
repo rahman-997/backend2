@@ -40,11 +40,12 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
+  const internalError = new HttpError(500, "Internal server error");
   console.error({ requestId, error });
-  res.status(500).json({
+  res.status(internalError.statusCode).json({
     error: {
       code: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error",
+      message: internalError.message,
       requestId,
     },
   });
@@ -60,6 +61,8 @@ function statusCodeToErrorCode(statusCode: number): string {
       return "CONFLICT";
     case 422:
       return "UNPROCESSABLE_ENTITY";
+    case 500:
+      return "INTERNAL_SERVER_ERROR";
     default:
       return "HTTP_ERROR";
   }
