@@ -30,31 +30,39 @@ export class PostgresVenueRepository implements VenueRepository {
   }
 
   async list(q: VenueListQuery): Promise<VenueListResult> {
-    const values: unknown[] = [];
+    const filterValues: unknown[] = [];
     const filters: string[] = [];
-    if (q.search) {
-      values.push(`%${q.search}%`);
-      filters.push(`(name ILIKE $${values.length} OR address ILIKE $${values.length})`);
+
+    if (q.search !== undefined) {
+      const search = q.search.trim();
+      if (search.length > 0) {
+        const pattern = `%${search}%`;
+        filterValues.push(pattern, pattern);
+        filters.push(`(LOWER(name) LIKE LOWER($${filterValues.length - 1}) OR LOWER(address) LIKE LOWER($${filterValues.length}))`);
+      }
     }
+
     if (q.minCapacity !== undefined) {
-      values.push(q.minCapacity);
-      filters.push(`capacity >= $${values.length}`);
+      filterValues.push(q.minCapacity);
+      filters.push(`capacity >= $${filterValues.length}`);
     }
     if (q.maxCapacity !== undefined) {
-      values.push(q.maxCapacity);
-      filters.push(`capacity <= $${values.length}`);
+      filterValues.push(q.maxCapacity);
+      filters.push(`capacity <= $${filterValues.length}`);
     }
 
     const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-    const count = await this.pool.query(`SELECT COUNT(*)::int total FROM venues ${where}`, values);
+    const count = await this.pool.query(`SELECT COUNT(*)::int total FROM venues ${where}`, filterValues);
     const offset = (q.page - 1) * q.limit;
     const sortColumn = sortColumns[q.sortBy];
     const direction = q.order === "asc" ? "ASC" : "DESC";
 
-    values.push(q.limit, offset);
+    const paginationValues = [...filterValues, q.limit, offset];
+    const limitPosition = paginationValues.length - 1;
+    const offsetPosition = paginationValues.length;
     const r = await this.pool.query(
-      `SELECT * FROM venues ${where} ORDER BY ${sortColumn} ${direction}, id ASC LIMIT $${values.length - 1} OFFSET $${values.length}`,
-      values,
+      `SELECT * FROM venues ${where} ORDER BY ${sortColumn} ${direction}, id ASC LIMIT $${limitPosition} OFFSET $${offsetPosition}`,
+      paginationValues,
     );
 
     return { data: r.rows.map(toVenue), total: Number(count.rows[0].total) };
