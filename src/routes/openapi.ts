@@ -2,7 +2,7 @@ export const openapi = {
   openapi: "3.1.0",
   info: {
     title: "Backend2 API",
-    version: "1.1.2",
+    version: "1.1.3",
     description: "Production-oriented Express 5 API for venue management.",
   },
   paths: {
@@ -13,8 +13,8 @@ export const openapi = {
           { name: "page", in: "query", schema: { type: "integer", minimum: 1, maximum: 10000, default: 1 } },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
           { name: "search", in: "query", schema: { type: "string", minLength: 1, maxLength: 100 } },
-          { name: "minCapacity", in: "query", schema: { type: "integer", minimum: 0 }, description: "Inclusive minimum capacity." },
-          { name: "maxCapacity", in: "query", schema: { type: "integer", minimum: 0 }, description: "Inclusive maximum capacity. Must be greater than or equal to minCapacity when both are supplied." },
+          { name: "minCapacity", in: "query", schema: { type: "integer", minimum: 0, maximum: 2147483647 }, description: "Inclusive minimum capacity." },
+          { name: "maxCapacity", in: "query", schema: { type: "integer", minimum: 0, maximum: 2147483647 }, description: "Inclusive maximum capacity. Must be greater than or equal to minCapacity when both are supplied." },
           { name: "sortBy", in: "query", schema: { type: "string", enum: ["createdAt", "name", "address", "capacity"], default: "createdAt" }, description: "Safe allowlisted sort field." },
           { name: "order", in: "query", schema: { type: "string", enum: ["asc", "desc"], default: "desc" }, description: "Sort direction." },
         ],
@@ -49,18 +49,18 @@ export const openapi = {
         required: ["id", "name", "address", "capacity", "contactEmail", "createdAt"],
         properties: {
           id: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 255 }, address: { type: "string", minLength: 1, maxLength: 2000 },
-          capacity: { type: "integer", minimum: 1 }, contactEmail: { type: "string", format: "email", maxLength: 320 }, createdAt: { type: "string", format: "date-time" },
+          capacity: { type: "integer", minimum: 1, maximum: 2147483647 }, contactEmail: { type: "string", format: "email", maxLength: 320 }, createdAt: { type: "string", format: "date-time" },
         },
       },
       VenueInput: {
         type: "object",
         required: ["name", "address", "capacity", "contactEmail"],
-        properties: { name: { type: "string", minLength: 1, maxLength: 255 }, address: { type: "string", minLength: 1, maxLength: 2000 }, capacity: { type: "integer", minimum: 1 }, contactEmail: { type: "string", format: "email", maxLength: 320 } },
+        properties: { name: { type: "string", minLength: 1, maxLength: 255 }, address: { type: "string", minLength: 1, maxLength: 2000 }, capacity: { type: "integer", minimum: 1, maximum: 2147483647 }, contactEmail: { type: "string", format: "email", maxLength: 320 } },
       },
       VenuePatch: {
         type: "object",
         minProperties: 1,
-        properties: { name: { type: "string", minLength: 1, maxLength: 255 }, address: { type: "string", minLength: 1, maxLength: 2000 }, capacity: { type: "integer", minimum: 1 }, contactEmail: { type: "string", format: "email", maxLength: 320 } },
+        properties: { name: { type: "string", minLength: 1, maxLength: 255 }, address: { type: "string", minLength: 1, maxLength: 2000 }, capacity: { type: "integer", minimum: 1, maximum: 2147483647 }, contactEmail: { type: "string", format: "email", maxLength: 320 } },
       },
     },
   },
