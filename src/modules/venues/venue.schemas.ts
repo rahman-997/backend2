@@ -18,10 +18,7 @@ export const updateVenueSchema = z
   .object(venueFields)
   .partial()
   .strict()
-  .refine(
-    (value) => Object.keys(value).length > 0,
-    "At least one field must be provided",
-  );
+  .refine((value) => Object.keys(value).length > 0, "At least one field must be provided");
 
 export const venueIdParamsSchema = z.object({
   id: z.uuid("Venue id must be a valid UUID"),
@@ -39,6 +36,8 @@ export const listVenuesQuerySchema = z
     search: z.string().trim().min(1).optional(),
     minCapacity: capacityFilter.optional(),
     maxCapacity: capacityFilter.optional(),
+    sortBy: z.enum(["createdAt", "name", "address", "capacity"]).default("createdAt"),
+    order: z.enum(["asc", "desc"]).default("desc"),
   })
   .refine(
     (value) =>
