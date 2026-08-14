@@ -22,10 +22,20 @@ export class MemoryVenueRepository implements VenueRepository {
 
     const direction = query.order === "asc" ? 1 : -1;
     items.sort((a, b) => {
-      const left = query.sortBy === "capacity" ? a.capacity : query.sortBy === "name" ? a.name : query.sortBy === "address" ? a.address : a.createdAt;
-      const right = query.sortBy === "capacity" ? b.capacity : query.sortBy === "name" ? b.name : query.sortBy === "address" ? b.address : b.createdAt;
-      if (left < right) return -1 * direction;
-      if (left > right) return 1 * direction;
+      if (query.sortBy === "capacity") {
+        const difference = a.capacity - b.capacity;
+        if (difference !== 0) return difference * direction;
+      } else if (query.sortBy === "name") {
+        const difference = a.name.localeCompare(b.name);
+        if (difference !== 0) return difference * direction;
+      } else if (query.sortBy === "address") {
+        const difference = a.address.localeCompare(b.address);
+        if (difference !== 0) return difference * direction;
+      } else {
+        const difference = a.createdAt.localeCompare(b.createdAt);
+        if (difference !== 0) return difference * direction;
+      }
+
       return a.id.localeCompare(b.id);
     });
 
