@@ -47,15 +47,15 @@ describe("/v1/venues", () => {
     ];
     for (const venue of venues) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
 
-    const bounded = await request(app).get("/v1/venues?minCapacity=50&maxCapacity=100&limit=100");
+    const bounded = await request(app).get("/v1/venues?search=Capacity&minCapacity=50&maxCapacity=100&limit=100");
     expect(bounded.status).toBe(200);
     expect(bounded.body.data.map((v: { capacity: number }) => v.capacity).sort((a: number, b: number) => a - b)).toEqual([50, 100]);
 
-    const minimumOnly = await request(app).get("/v1/venues?minCapacity=100&limit=100");
+    const minimumOnly = await request(app).get("/v1/venues?search=Capacity&minCapacity=100&limit=100");
     expect(minimumOnly.status).toBe(200);
     expect(minimumOnly.body.data.every((v: { capacity: number }) => v.capacity >= 100)).toBe(true);
 
-    const maximumOnly = await request(app).get("/v1/venues?maxCapacity=100&limit=100");
+    const maximumOnly = await request(app).get("/v1/venues?search=Capacity&maxCapacity=100&limit=100");
     expect(maximumOnly.status).toBe(200);
     expect(maximumOnly.body.data.every((v: { capacity: number }) => v.capacity <= 100)).toBe(true);
   });
