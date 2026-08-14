@@ -12,7 +12,30 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: backend2
+          POSTGRES_USER: backend2
+          POSTGRES_PASSWORD: backend2
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backend2 -d backend2"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://backend2:backend2@localhost:5432/backend2
+      STORAGE: postgres
+      NODE_ENV: test
+      CORS_ORIGIN: http://localhost:3000
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX: 100
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,12 +44,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Verify Node.js
         run: node --version && npm --version
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Run database migrations
+        run: npm run db:migrate
 
       - name: Typecheck
         run: npm run typecheck
