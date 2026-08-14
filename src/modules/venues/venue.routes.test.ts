@@ -64,6 +64,31 @@ describe("/v1/venues", () => {
     expect(maximumOnly.body.data.every((v: { capacity: number }) => v.capacity <= 100)).toBe(true);
   });
 
+  it("supports an exact capacity range when minCapacity equals maxCapacity", async () => {
+    const venues = [
+      { name: "Exact 75 A", address: "A", capacity: 75, contactEmail: "exact-a@example.com" },
+      { name: "Exact 75 B", address: "B", capacity: 75, contactEmail: "exact-b@example.com" },
+      { name: "Exact 76", address: "C", capacity: 76, contactEmail: "exact-c@example.com" },
+    ];
+
+    for (const venue of venues) {
+      expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+    }
+
+    const response = await request(app).get("/v1/venues?minCapacity=75&maxCapacity=75&limit=100");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.map((v: { capacity: number }) => v.capacity)).toEqual([75, 75]);
+  });
+
+  it("returns an empty result when the capacity range matches nothing", async () => {
+    const response = await request(app).get("/v1/venues?minCapacity=999999&maxCapacity=1000000");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([]);
+    expect(response.body.pagination.total).toBe(0);
+  });
+
   it("rejects invalid min/max capacity ranges", async () => {
     const response = await request(app).get("/v1/venues?minCapacity=101&maxCapacity=100");
 
