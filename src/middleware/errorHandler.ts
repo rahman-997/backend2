@@ -1,55 +1,62 @@
-import type { ErrorRequestHandler } from "express";
+import type { ErrorRequestHandler, Response } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "../errors/HttpError.js";
+
+type ErrorPayload = {
+  code: string;
+  message: string;
+  requestId: string;
+  details?: unknown;
+};
 
 export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   const requestId = String(res.locals.requestId ?? "");
 
   if (error instanceof ZodError) {
-    res.status(400).json({
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Request validation failed",
-        details: error.issues,
-        requestId,
-      },
+    sendError(res, 400, {
+      code: "VALIDATION_ERROR",
+      message: "Request validation failed",
+      details: error.issues,
+      requestId,
     });
     return;
   }
 
   if (error instanceof HttpError) {
-    res.status(error.statusCode).json({
-      error: {
-        code: statusCodeToErrorCode(error.statusCode),
-        message: error.message,
-        requestId,
-        ...(error.details !== undefined ? { details: error.details } : {}),
-      },
+    sendError(res, error.statusCode, {
+      code: statusCodeToErrorCode(error.statusCode),
+      message: error.message,
+      ...(error.details !== undefined ? { details: error.details } : {}),
+      requestId,
     });
     return;
   }
 
-  if (error?.code === "23505") {
-    res.status(409).json({
-      error: {
-        code: "CONFLICT",
-        message: "A unique resource already exists",
-        requestId,
-      },
+  if (isPostgresUniqueViolation(error)) {
+    sendError(res, 409, {
+      code: "CONFLICT",
+      message: "A unique resource already exists",
+      requestId,
     });
     return;
   }
 
   const internalError = new HttpError(500, "Internal server error");
   console.error({ requestId, error });
-  res.status(internalError.statusCode).json({
-    error: {
-      code: "INTERNAL_SERVER_ERROR",
-      message: internalError.message,
-      requestId,
-    },
+  sendError(res, internalError.statusCode, {
+    code: statusCodeToErrorCode(internalError.statusCode),
+    message: internalError.message,
+    requestId,
   });
 };
+
+function sendError(res: Response, statusCode: number, payload: ErrorPayload): void {
+  res.status(statusCode).json({ error: payload });
+}
+
+function isPostgresUniqueViolation(error: unknown): error is { code: "23505" } {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
 
 function statusCodeToErrorCode(statusCode: number): string {
   switch (statusCode) {
