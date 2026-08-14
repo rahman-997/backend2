@@ -1,11 +1,16 @@
 import type { CreateVenueInput, UpdateVenueInput, Venue } from "./venue.types.js";
 
+export type VenueSortBy = "createdAt" | "name" | "address" | "capacity";
+export type SortOrder = "asc" | "desc";
+
 export interface VenueListQuery {
   page: number;
   limit: number;
   search?: string;
   minCapacity?: number;
   maxCapacity?: number;
+  sortBy: VenueSortBy;
+  order: SortOrder;
 }
 
 export interface VenueListResult {
