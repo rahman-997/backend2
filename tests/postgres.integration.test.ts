@@ -1,3 +1,4 @@
+import { afterAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { randomUUID } from "node:crypto";
 
