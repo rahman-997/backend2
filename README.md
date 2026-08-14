@@ -1,85 +1,59 @@
 # backend2
 
-Express 5 + TypeScript + Zod 4 backend with a layered `/v1/venues` CRUD resource.
-
-## Architecture
+Production-oriented Express 5 + TypeScript + Zod 4 API with layered venues architecture.
 
 ```text
-routes -> validation middleware -> controller -> service -> in-memory Map
-                                      |
-                                      +-> centralized error middleware
+HTTP -> security -> routes -> Zod -> controller -> service -> repository -> storage
+                                                                  |-> Map
+                                                                  |-> PostgreSQL
 ```
 
-Business logic belongs in the service layer. Routes wire middleware and controllers, controllers handle HTTP concerns, and validation is performed before controller execution.
-
-## Install
+## Run
 
 ```bash
 npm install
-```
-
-## Development
-
-```bash
 npm run dev
-```
-
-## Type check
-
-```bash
 npm run typecheck
-```
-
-## Build
-
-```bash
 npm run build
-```
-
-## Tests
-
-```bash
 npm test
 ```
 
-The test suite covers create, list limits, get, update, delete, duplicate names (`409`), missing IDs (`404`), validation failures (`400`), empty patches, and invalid limits.
+## PostgreSQL
+
+Set `STORAGE=postgres` and `DATABASE_URL`, then run `npm run db:migrate`.
+
+Docker runs PostgreSQL, applies the migration, and starts the API:
+
+```bash
+docker compose up --build
+```
 
 ## API
 
-- `POST /v1/venues`
-- `GET /v1/venues?limit=20`
-- `GET /v1/venues/:id`
-- `PATCH /v1/venues/:id`
-- `DELETE /v1/venues/:id`
-
-## Create example
-
-```json
-{
-  "name": "Main Hall",
-  "address": "1 Example Street",
-  "capacity": 500,
-  "contactEmail": "contact@example.com"
-}
+```text
+POST   /v1/venues
+GET    /v1/venues?page=1&limit=20&search=hall&minCapacity=100&maxCapacity=5000
+GET    /v1/venues/:id
+PATCH  /v1/venues/:id
+DELETE /v1/venues/:id
 ```
 
-## Venue
+List responses include pagination metadata. Venue IDs are server-generated UUIDs. PostgreSQL enforces case-insensitive unique names and positive capacity.
 
-```json
-{
-  "id": "server-generated",
-  "name": "Unique venue name",
-  "address": "Venue address",
-  "capacity": 100,
-  "contactEmail": "contact@example.com",
-  "createdAt": "server-generated"
-}
-```
+## Operations
 
-## CI
+- `/health` liveness
+- `/ready` storage readiness
+- `/openapi.json` OpenAPI document
+- request IDs
+- Helmet
+- CORS
+- rate limiting
+- centralized errors
+- graceful database shutdown
+- Docker deployment
+- GitHub Actions quality gates
 
-GitHub Actions runs dependency installation, TypeScript type checking, production build, and the test suite on pushes and pull requests targeting `main`.
+## Tests
 
-## Data storage
-
-Venue data is stored in an in-memory `Map`, so it is reset when the process restarts.
+Covers CRUD, UUIDs, pagination, search, capacity filters, validation, duplicates, missing resources and invalid query ranges.
