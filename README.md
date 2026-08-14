@@ -26,7 +26,9 @@ Set `STORAGE=postgres` and `DATABASE_URL`, then run:
 npm run db:migrate
 ```
 
-Docker runs PostgreSQL, applies the migration, and starts the API:
+Migrations are discovered in filename order and tracked in `schema_migrations`, so each migration is applied once and failed migrations are rolled back.
+
+Docker runs PostgreSQL, applies all pending migrations, and starts the API:
 
 ```bash
 docker compose up --build
@@ -36,7 +38,7 @@ docker compose up --build
 
 ```text
 POST   /v1/venues
-GET    /v1/venues?page=1&limit=20&search=hall&minCapacity=100&maxCapacity=5000
+GET    /v1/venues?page=1&limit=20&search=hall&minCapacity=100&maxCapacity=5000&sortBy=capacity&order=desc
 GET    /v1/venues/:id
 PATCH  /v1/venues/:id
 DELETE /v1/venues/:id
@@ -63,6 +65,16 @@ GET /v1/venues?minCapacity=500&maxCapacity=1000
 GET /v1/venues?minCapacity=750&maxCapacity=750
 ```
 
+### Search, sorting and pagination
+
+- `page`: integer from `1` to `10000`.
+- `limit`: integer from `1` to `100`.
+- `search`: up to 100 characters; searches name and address.
+- `sortBy`: `createdAt`, `name`, `address`, or `capacity`.
+- `order`: `asc` or `desc`.
+- Sorting uses an allowlist and never interpolates an arbitrary user-provided column.
+- PostgreSQL includes trigram indexes for name/address search and indexes for common sort fields.
+
 List responses include pagination metadata. Venue IDs are server-generated UUIDs. PostgreSQL enforces case-insensitive unique names and positive capacity.
 
 ## Operations
@@ -81,4 +93,4 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 
 ## Tests
 
-Covers CRUD, UUIDs, pagination, search, minimum/maximum capacity filters, exact-capacity ranges, empty ranges, validation, duplicates, missing resources and invalid query ranges.
+Covers CRUD, UUIDs, pagination, search, minimum/maximum capacity filters, exact-capacity ranges, empty ranges, validation, input bounds, duplicates, missing resources, sorting and invalid query ranges.
