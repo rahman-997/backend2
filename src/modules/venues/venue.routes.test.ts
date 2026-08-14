@@ -39,6 +39,45 @@ describe("/v1/venues", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("filters venues with minCapacity and maxCapacity inclusively", async () => {
+    const venues = [
+      { name: "Capacity 50", address: "A", capacity: 50, contactEmail: "a@example.com" },
+      { name: "Capacity 100", address: "B", capacity: 100, contactEmail: "b@example.com" },
+      { name: "Capacity 150", address: "C", capacity: 150, contactEmail: "c@example.com" },
+    ];
+
+    for (const venue of venues) {
+      expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+    }
+
+    const bounded = await request(app).get("/v1/venues?minCapacity=50&maxCapacity=100&limit=100");
+    expect(bounded.status).toBe(200);
+    expect(bounded.body.data.map((v: { capacity: number }) => v.capacity).sort((a: number, b: number) => a - b))
+      .toEqual([50, 100]);
+
+    const minimumOnly = await request(app).get("/v1/venues?minCapacity=100&limit=100");
+    expect(minimumOnly.status).toBe(200);
+    expect(minimumOnly.body.data.every((v: { capacity: number }) => v.capacity >= 100)).toBe(true);
+
+    const maximumOnly = await request(app).get("/v1/venues?maxCapacity=100&limit=100");
+    expect(maximumOnly.status).toBe(200);
+    expect(maximumOnly.body.data.every((v: { capacity: number }) => v.capacity <= 100)).toBe(true);
+  });
+
+  it("rejects invalid min/max capacity ranges", async () => {
+    const response = await request(app).get("/v1/venues?minCapacity=101&maxCapacity=100");
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects negative or fractional min/max capacity filters", async () => {
+    expect((await request(app).get("/v1/venues?minCapacity=-1")).status).toBe(400);
+    expect((await request(app).get("/v1/venues?maxCapacity=-1")).status).toBe(400);
+    expect((await request(app).get("/v1/venues?minCapacity=10.5")).status).toBe(400);
+    expect((await request(app).get("/v1/venues?maxCapacity=10.5")).status).toBe(400);
+  });
+
   it("rejects duplicate names", async () => {
     const payload = {
       name: "Duplicate Venue",
