@@ -1,16 +1,23 @@
 import { z } from "zod";
 
+const MAX_CAPACITY = 2_147_483_647;
+
 const venueFields = {
   name: z.string().trim().min(1, "Name is required").max(255, "Name is too long"),
   address: z.string().trim().min(1, "Address is required").max(2000, "Address is too long"),
-  capacity: z.number().int("Capacity must be an integer").positive("Capacity must be positive"),
+  capacity: z
+    .number()
+    .int("Capacity must be an integer")
+    .positive("Capacity must be positive")
+    .max(MAX_CAPACITY, "Capacity exceeds the supported maximum"),
   contactEmail: z.string().trim().email("Invalid contact email").max(320, "Contact email is too long"),
 };
 
 const capacityFilter = z.coerce
   .number()
   .int("Capacity filter must be an integer")
-  .nonnegative("Capacity filter cannot be negative");
+  .nonnegative("Capacity filter cannot be negative")
+  .max(MAX_CAPACITY, "Capacity filter exceeds the supported maximum");
 
 export const createVenueSchema = z.object(venueFields).strict();
 
