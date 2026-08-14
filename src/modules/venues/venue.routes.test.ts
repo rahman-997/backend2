@@ -39,6 +39,13 @@ describe("/v1/venues", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("rejects an invalid venue UUID", async () => {
+    const response = await request(app).get("/v1/venues/not-a-uuid");
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
   it("filters venues with minCapacity and maxCapacity inclusively", async () => {
     const venues = [
       { name: "Capacity 50", address: "A", capacity: 50, contactEmail: "a@example.com" },
