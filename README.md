@@ -3,9 +3,9 @@
 Production-oriented Express 5 + TypeScript + Zod 4 API with a layered venues architecture.
 
 ```text
-HTTP -> security -> routes -> Zod -> controller -> service -> repository -> storage
-                                                                  |-> Map
-                                                                  |-> PostgreSQL
+HTTP -> security -> request ID -> logging -> routes -> Zod -> controller -> service -> repository -> storage
+                                                                                 |-> Map
+                                                                                 |-> PostgreSQL
 ```
 
 ## Run
@@ -44,6 +44,10 @@ PATCH  /v1/venues/:id
 DELETE /v1/venues/:id
 ```
 
+### Browser documentation
+
+Open `http://localhost:3000/docs` for a lightweight interactive reference page, or `http://localhost:3000/openapi.json` for the machine-readable OpenAPI document.
+
 ### Capacity filtering
 
 `minCapacity` and `maxCapacity` are optional, non-negative integers.
@@ -81,11 +85,13 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 
 - `/health` liveness
 - `/ready` storage readiness
+- `/docs` browser API documentation
 - `/openapi.json` OpenAPI document
 - request IDs
+- structured request logging
 - Helmet
 - CORS
-- rate limiting
+- rate limiting with standard rate-limit headers and `Retry-After`
 - centralized errors
 - graceful database shutdown
 - Docker deployment
