@@ -92,6 +92,22 @@ describe("/v1/venues", () => {
     expect((await request(app).get("/v1/venues?maxCapacity=10.5")).status).toBe(400);
   });
 
+  it("enforces safe pagination and query bounds", async () => {
+    expect((await request(app).get("/v1/venues?limit=101")).status).toBe(400);
+    expect((await request(app).get("/v1/venues?page=10001")).status).toBe(400);
+    expect((await request(app).get(`/v1/venues?search=${"x".repeat(101)}`)).status).toBe(400);
+  });
+
+  it("rejects oversized venue fields", async () => {
+    const response = await request(app).post("/v1/venues").send({
+      name: "x".repeat(256),
+      address: "Address",
+      capacity: 10,
+      contactEmail: "test@example.com",
+    });
+    expect(response.status).toBe(400);
+  });
+
   it("sorts by capacity in both directions", async () => {
     for (const venue of [
       { name: "Sort Low", address: "A", capacity: 100, contactEmail: "sort-low@example.com" },
