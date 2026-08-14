@@ -16,7 +16,6 @@ describe("/v1/venues", () => {
     expect(create.body.data.createdAt).toEqual(expect.any(String));
 
     const id = create.body.data.id;
-
     const list = await request(app).get("/v1/venues?limit=10");
     expect(list.status).toBe(200);
     expect(list.body.data).toEqual(expect.arrayContaining([
@@ -26,22 +25,16 @@ describe("/v1/venues", () => {
     const get = await request(app).get(`/v1/venues/${id}`);
     expect(get.status).toBe(200);
 
-    const update = await request(app)
-      .patch(`/v1/venues/${id}`)
-      .send({ capacity: 200 });
+    const update = await request(app).patch(`/v1/venues/${id}`).send({ capacity: 200 });
     expect(update.status).toBe(200);
     expect(update.body.data.capacity).toBe(200);
 
-    const remove = await request(app).delete(`/v1/venues/${id}`);
-    expect(remove.status).toBe(204);
-
-    const missing = await request(app).get(`/v1/venues/${id}`);
-    expect(missing.status).toBe(404);
+    expect((await request(app).delete(`/v1/venues/${id}`)).status).toBe(204);
+    expect((await request(app).get(`/v1/venues/${id}`)).status).toBe(404);
   });
 
   it("rejects an invalid venue UUID", async () => {
     const response = await request(app).get("/v1/venues/not-a-uuid");
-
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
   });
@@ -52,15 +45,11 @@ describe("/v1/venues", () => {
       { name: "Capacity 100", address: "B", capacity: 100, contactEmail: "b@example.com" },
       { name: "Capacity 150", address: "C", capacity: 150, contactEmail: "c@example.com" },
     ];
-
-    for (const venue of venues) {
-      expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
-    }
+    for (const venue of venues) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
 
     const bounded = await request(app).get("/v1/venues?minCapacity=50&maxCapacity=100&limit=100");
     expect(bounded.status).toBe(200);
-    expect(bounded.body.data.map((v: { capacity: number }) => v.capacity).sort((a: number, b: number) => a - b))
-      .toEqual([50, 100]);
+    expect(bounded.body.data.map((v: { capacity: number }) => v.capacity).sort((a: number, b: number) => a - b)).toEqual([50, 100]);
 
     const minimumOnly = await request(app).get("/v1/venues?minCapacity=100&limit=100");
     expect(minimumOnly.status).toBe(200);
@@ -72,25 +61,19 @@ describe("/v1/venues", () => {
   });
 
   it("supports an exact capacity range when minCapacity equals maxCapacity", async () => {
-    const venues = [
+    for (const venue of [
       { name: "Exact 75 A", address: "A", capacity: 75, contactEmail: "exact-a@example.com" },
       { name: "Exact 75 B", address: "B", capacity: 75, contactEmail: "exact-b@example.com" },
       { name: "Exact 76", address: "C", capacity: 76, contactEmail: "exact-c@example.com" },
-    ];
-
-    for (const venue of venues) {
-      expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
-    }
+    ]) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
 
     const response = await request(app).get("/v1/venues?minCapacity=75&maxCapacity=75&limit=100");
-
     expect(response.status).toBe(200);
     expect(response.body.data.map((v: { capacity: number }) => v.capacity)).toEqual([75, 75]);
   });
 
   it("returns an empty result when the capacity range matches nothing", async () => {
     const response = await request(app).get("/v1/venues?minCapacity=999999&maxCapacity=1000000");
-
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([]);
     expect(response.body.pagination.total).toBe(0);
@@ -98,7 +81,6 @@ describe("/v1/venues", () => {
 
   it("rejects invalid min/max capacity ranges", async () => {
     const response = await request(app).get("/v1/venues?minCapacity=101&maxCapacity=100");
-
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
   });
@@ -110,32 +92,46 @@ describe("/v1/venues", () => {
     expect((await request(app).get("/v1/venues?maxCapacity=10.5")).status).toBe(400);
   });
 
+  it("sorts by capacity in both directions", async () => {
+    for (const venue of [
+      { name: "Sort Low", address: "A", capacity: 100, contactEmail: "sort-low@example.com" },
+      { name: "Sort High", address: "B", capacity: 900, contactEmail: "sort-high@example.com" },
+      { name: "Sort Mid", address: "C", capacity: 500, contactEmail: "sort-mid@example.com" },
+    ]) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+
+    const asc = await request(app).get("/v1/venues?sortBy=capacity&order=asc&limit=100");
+    expect(asc.status).toBe(200);
+    const ascCaps = asc.body.data.map((v: { capacity: number }) => v.capacity);
+    expect(ascCaps).toEqual([...ascCaps].sort((a: number, b: number) => a - b));
+
+    const desc = await request(app).get("/v1/venues?sortBy=capacity&order=desc&limit=100");
+    expect(desc.status).toBe(200);
+    const descCaps = desc.body.data.map((v: { capacity: number }) => v.capacity);
+    expect(descCaps).toEqual([...descCaps].sort((a: number, b: number) => b - a));
+  });
+
+  it("supports sorting by name and rejects unknown sort fields", async () => {
+    for (const venue of [
+      { name: "Zulu Hall", address: "A", capacity: 100, contactEmail: "zulu@example.com" },
+      { name: "Alpha Hall", address: "B", capacity: 200, contactEmail: "alpha@example.com" },
+    ]) expect((await request(app).post("/v1/venues").send(venue)).status).toBe(201);
+
+    const sorted = await request(app).get("/v1/venues?sortBy=name&order=asc&limit=100");
+    expect(sorted.status).toBe(200);
+    const names = sorted.body.data.map((v: { name: string }) => v.name);
+    expect(names).toEqual([...names].sort((a: string, b: string) => a.localeCompare(b)));
+
+    expect((await request(app).get("/v1/venues?sortBy=sql_injection")).status).toBe(400);
+  });
+
   it("rejects duplicate names", async () => {
-    const payload = {
-      name: "Duplicate Venue",
-      address: "Address",
-      capacity: 50,
-      contactEmail: "duplicate@example.com",
-    };
-
-    const first = await request(app).post("/v1/venues").send(payload);
-    expect(first.status).toBe(201);
-
-    const second = await request(app).post("/v1/venues").send({
-      ...payload,
-      name: "duplicate venue",
-    });
-    expect(second.status).toBe(409);
+    const payload = { name: "Duplicate Venue", address: "Address", capacity: 50, contactEmail: "duplicate@example.com" };
+    expect((await request(app).post("/v1/venues").send(payload)).status).toBe(201);
+    expect((await request(app).post("/v1/venues").send({ ...payload, name: "duplicate venue" })).status).toBe(409);
   });
 
   it("rejects invalid input", async () => {
-    const response = await request(app).post("/v1/venues").send({
-      name: "",
-      address: "Address",
-      capacity: 0,
-      contactEmail: "not-an-email",
-    });
-
+    const response = await request(app).post("/v1/venues").send({ name: "", address: "Address", capacity: 0, contactEmail: "not-an-email" });
     expect(response.status).toBe(400);
   });
 
