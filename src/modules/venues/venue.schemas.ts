@@ -24,7 +24,7 @@ export const updateVenueSchema = z
   );
 
 export const venueIdParamsSchema = z.object({
-  id: z.string().trim().min(1, "Venue id is required"),
+  id: z.uuid("Venue id must be a valid UUID"),
 });
 
 export const listVenuesQuerySchema = z
