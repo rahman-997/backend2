@@ -58,6 +58,18 @@ jobs:
       - name: Run database migrations
         run: npm run db:migrate
 
+      - name: Validate Prisma schema
+        run: npm run db:prisma:validate
+
+      - name: Generate Prisma client
+        run: npm run db:prisma:generate
+
+      - name: Check Drizzle schema
+        run: npm run db:drizzle:check
+
+      - name: Validate TypeORM schema
+        run: npm run db:typeorm:validate
+
       - name: Typecheck
         run: npm run typecheck
 
