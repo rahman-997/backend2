@@ -1,11 +1,3 @@
 import { z } from "zod";
-
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().max(65535).default(3000),
-  CORS_ORIGIN: z.string().default("*"),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
-});
-
+const envSchema = z.object({ NODE_ENV: z.enum(["development","test","production"]).default("development"), PORT: z.coerce.number().int().positive().max(65535).default(3000), HOST: z.string().default("0.0.0.0"), CORS_ORIGIN: z.string().default("*"), RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100), DATABASE_URL: z.string().url().optional(), DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10), STORAGE: z.enum(["memory","postgres"]).default("memory") });
 export const env = envSchema.parse(process.env);
