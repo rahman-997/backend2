@@ -13,26 +13,45 @@ HTTP -> security -> request ID -> logging -> routes -> Zod -> controller -> serv
 ```bash
 npm install
 npm run dev
-npm run typecheck
-npm run build
-npm test
 ```
+
+Local verification:
+
+```bash
+npm run verify
+```
+
+`verify` runs TypeScript typechecking, a production build, and the Vitest suite.
 
 ## PostgreSQL
 
-Set `STORAGE=postgres` and `DATABASE_URL`, then run:
+PostgreSQL is the canonical production database. Set `STORAGE=postgres` and `DATABASE_URL`, then run:
 
 ```bash
 npm run db:migrate
+npm run db:contract
 ```
 
-Migrations are discovered in filename order and tracked in `schema_migrations`, so each migration is applied once and failed migrations are rolled back.
+Migrations are discovered in filename order and tracked in `schema_migrations`, so each migration is applied once and failed migrations are rolled back. `db:contract` inspects the real PostgreSQL catalog and verifies the expected `venues` columns, UUID/defaults, positive-capacity constraint, case-insensitive unique-name index, and core indexes.
 
 Docker runs PostgreSQL, applies all pending migrations, and starts the API:
 
 ```bash
 docker compose up --build
 ```
+
+## Database and schema tooling
+
+SQL migrations are the source of truth for production schema changes.
+
+- PostgreSQL + SQL migrations: canonical production storage/schema.
+- Zod: API request/query validation.
+- Prisma: schema representation, validation, and generated client tooling.
+- Drizzle: schema representation and Drizzle Kit checks.
+- TypeORM: entity metadata validation with synchronization disabled.
+- MySQL: reference/equivalent schema only; it is not the active production adapter.
+
+See `docs/DATABASE-ARCHITECTURE.md` for the database ownership rules. Multiple ORMs are not allowed to mutate the production schema independently.
 
 ## API
 
@@ -96,7 +115,37 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 - graceful database shutdown
 - Docker deployment
 - GitHub Actions quality gates
+- guarded PostgreSQL backup/restore scripts
 
-## Tests
+Backup and restore:
 
-Covers CRUD, UUIDs, pagination, search, minimum/maximum capacity filters, exact-capacity ranges, empty ranges, validation, input bounds, duplicates, missing resources, sorting and invalid query ranges.
+```bash
+npm run db:backup
+# destructive restore requires CONFIRM_RESTORE=yes
+npm run db:restore -- backups/backend2-<timestamp>.dump
+```
+
+See `docs/BACKUP-RESTORE.md` and `docs/PRODUCTION-CHECKLIST.md` before production deployment.
+
+## Tests and CI
+
+Unit/integration tests cover CRUD, UUIDs, pagination, search, minimum/maximum capacity filters, exact-capacity ranges, empty ranges, validation, input bounds, duplicates, missing resources, sorting and invalid query ranges.
+
+CI additionally runs:
+
+```text
+PostgreSQL service
+  -> SQL migrations
+  -> canonical DB contract validation
+  -> Prisma validation/generation
+  -> Drizzle schema check
+  -> TypeORM metadata validation
+  -> typecheck
+  -> production build
+  -> Vitest
+  -> compiled-server E2E smoke test
+  -> dependency audit
+  -> Docker build
+```
+
+The E2E smoke test starts `dist/server.js` against PostgreSQL and verifies health/readiness, create, case-insensitive duplicate conflict, filtered min/max listing, get, update, delete, and post-delete 404 behavior.
