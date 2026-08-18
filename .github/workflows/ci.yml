@@ -73,6 +73,9 @@ jobs:
       - name: Validate TypeORM schema
         run: npm run db:typeorm:validate
 
+      - name: Cross ORM compatibility smoke test
+        run: npm run db:orm:smoke
+
       - name: Typecheck
         run: npm run typecheck
 
