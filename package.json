@@ -23,26 +23,26 @@
     "verify": "npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
-    "@prisma/client": "^6.15.0",
     "cors": "^2.8.5",
-    "drizzle-orm": "^0.44.4",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "pg": "^8.16.0",
-    "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.26",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@prisma/client": "^6.15.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.0",
     "@types/supertest": "^6.0.3",
     "drizzle-kit": "^0.31.4",
+    "drizzle-orm": "^0.44.4",
     "prisma": "^6.15.0",
+    "reflect-metadata": "^0.2.2",
     "supertest": "^7.1.4",
     "tsx": "^4.19.0",
+    "typeorm": "^0.3.26",
     "typescript": "^5.9.0",
     "vitest": "^3.2.4"
   }
