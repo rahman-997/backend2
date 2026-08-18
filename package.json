@@ -19,6 +19,7 @@
     "db:prisma:validate": "prisma validate",
     "db:drizzle:check": "drizzle-kit check",
     "db:typeorm:validate": "tsx scripts/typeorm-validate.ts",
+    "db:orm:smoke": "tsx scripts/orm-smoke.ts",
     "verify": "npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
