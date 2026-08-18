@@ -38,7 +38,7 @@ jobs:
       NODE_ENV: test
       CORS_ORIGIN: http://localhost:3000
       RATE_LIMIT_WINDOW_MS: 60000
-      RATE_LIMIT_MAX: 100
+      RATE_LIMIT_MAX: 1000
 
     steps:
       - name: Checkout
@@ -57,6 +57,9 @@ jobs:
 
       - name: Run database migrations
         run: npm run db:migrate
+
+      - name: Validate canonical database contract
+        run: npm run db:contract
 
       - name: Validate Prisma schema
         run: npm run db:prisma:validate
@@ -78,6 +81,9 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Run compiled API end-to-end smoke test
+        run: npm run test:e2e
 
       - name: Dependency audit
         run: npm audit --audit-level=high
