@@ -93,3 +93,28 @@ jobs:
 
       - name: Docker build
         run: docker build -t backend2:ci .
+
+      - name: Docker runtime smoke test
+        run: |
+          container_id=$(docker run -d --network host \
+            -e NODE_ENV=production \
+            -e PORT=3200 \
+            -e HOST=0.0.0.0 \
+            -e STORAGE=postgres \
+            -e DATABASE_URL=postgresql://backend2:backend2@127.0.0.1:5432/backend2 \
+            -e CORS_ORIGIN=http://localhost:3000 \
+            -e RATE_LIMIT_WINDOW_MS=60000 \
+            -e RATE_LIMIT_MAX=1000 \
+            backend2:ci)
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:3200/ready; then
+              docker rm -f "$container_id" >/dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs "$container_id"
+          docker rm -f "$container_id" >/dev/null
+          exit 1
