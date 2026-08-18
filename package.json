@@ -10,11 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
     "db:migrate": "tsx src/db/migrate.ts",
+    "db:contract": "node scripts/db-contract.mjs",
     "db:prisma:generate": "prisma generate",
     "db:prisma:validate": "prisma validate",
     "db:drizzle:check": "drizzle-kit check",
-    "db:typeorm:validate": "tsx scripts/typeorm-validate.ts"
+    "db:typeorm:validate": "tsx scripts/typeorm-validate.ts",
+    "verify": "npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",
