@@ -51,6 +51,8 @@ SQL migrations are the source of truth for production schema changes.
 - TypeORM: entity metadata validation with synchronization disabled.
 - MySQL: reference/equivalent schema only; it is not the active production adapter.
 
+The ORM packages are development/tooling dependencies, so the production Docker image does not carry unused ORM runtimes. CI runs a cross-ORM smoke test that writes with Prisma, reads with Drizzle, updates with TypeORM, verifies the update with Prisma, and deletes with Drizzle against the same PostgreSQL table.
+
 See `docs/DATABASE-ARCHITECTURE.md` for the database ownership rules. Multiple ORMs are not allowed to mutate the production schema independently.
 
 ## API
@@ -113,9 +115,11 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 - rate limiting with standard rate-limit headers and `Retry-After`
 - centralized errors
 - graceful database shutdown
-- Docker deployment
+- lean production Docker runtime
 - GitHub Actions quality gates
 - guarded PostgreSQL backup/restore scripts
+- Dependabot for npm and GitHub Actions updates
+- documented security policy
 
 Backup and restore:
 
@@ -125,7 +129,7 @@ npm run db:backup
 npm run db:restore -- backups/backend2-<timestamp>.dump
 ```
 
-See `docs/BACKUP-RESTORE.md` and `docs/PRODUCTION-CHECKLIST.md` before production deployment.
+See `docs/BACKUP-RESTORE.md`, `docs/PRODUCTION-CHECKLIST.md`, and `SECURITY.md` before production deployment.
 
 ## Tests and CI
 
@@ -140,12 +144,14 @@ PostgreSQL service
   -> Prisma validation/generation
   -> Drizzle schema check
   -> TypeORM metadata validation
+  -> cross-ORM interoperability smoke test
   -> typecheck
   -> production build
   -> Vitest
   -> compiled-server E2E smoke test
   -> dependency audit
   -> Docker build
+  -> production Docker runtime readiness smoke test
 ```
 
-The E2E smoke test starts `dist/server.js` against PostgreSQL and verifies health/readiness, create, case-insensitive duplicate conflict, filtered min/max listing, get, update, delete, and post-delete 404 behavior.
+The compiled-server E2E test verifies health/readiness, create, case-insensitive duplicate conflict, filtered min/max listing, get, update, delete, and post-delete 404 behavior. The Docker runtime smoke test then starts the actual production image with development dependencies omitted and requires `/ready` to succeed against PostgreSQL.
