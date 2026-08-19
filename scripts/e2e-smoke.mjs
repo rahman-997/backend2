@@ -79,6 +79,36 @@ try {
   });
   expectStatus(duplicate.response.status, 409, "case-insensitive duplicate name");
 
+  const raceToken = randomUUID();
+  const raceName = `Concurrent Venue ${raceToken}`;
+  const racePayload = {
+    name: raceName,
+    address: "Concurrent E2E Address",
+    capacity: 650,
+    contactEmail: `race-a-${raceToken}@example.com`,
+  };
+
+  const raceResponses = await Promise.all([
+    request("/v1/venues", { method: "POST", body: JSON.stringify(racePayload) }),
+    request("/v1/venues", {
+      method: "POST",
+      body: JSON.stringify({
+        ...racePayload,
+        name: raceName.toLowerCase(),
+        contactEmail: `race-b-${raceToken}@example.com`,
+      }),
+    }),
+  ]);
+
+  const raceStatuses = raceResponses.map(({ response }) => response.status).sort((a, b) => a - b);
+  if (raceStatuses[0] !== 201 || raceStatuses[1] !== 409) {
+    throw new Error(`concurrent duplicate race: expected statuses 201,409; got ${raceStatuses.join(",")}`);
+  }
+
+  const raceWinner = raceResponses.find(({ response }) => response.status === 201)?.body?.data?.id;
+  if (!raceWinner) throw new Error("concurrent duplicate race did not return the winning venue id");
+  expectStatus((await request(`/v1/venues/${raceWinner}`, { method: "DELETE" })).response.status, 204, "cleanup race venue");
+
   const list = await request(`/v1/venues?search=${encodeURIComponent(token)}&minCapacity=750&maxCapacity=750&sortBy=capacity&order=asc&limit=20`);
   expectStatus(list.response.status, 200, "filtered venue list");
   if (!Array.isArray(list.body?.data) || list.body.data.length !== 1 || list.body.data[0]?.id !== id) {
