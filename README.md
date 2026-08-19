@@ -1,6 +1,6 @@
 # backend2
 
-Production-oriented Express 5 + TypeScript + Zod 4 API with a layered venues architecture.
+Production-oriented Express 5 + TypeScript + Zod 4 API with layered venue management, multi-database persistence, authentication, refresh-token rotation, and role-based access control.
 
 ```text
 HTTP -> security -> request ID -> logging -> routes -> Zod -> controller -> service -> repository -> storage
@@ -23,6 +23,37 @@ npm run verify
 ```
 
 `verify` runs TypeScript typechecking, a production build, and the Vitest suite.
+
+## Authentication and RBAC
+
+Authentication uses signed JWT access tokens and opaque rotating refresh tokens.
+
+```text
+POST /v1/auth/register
+POST /v1/auth/login
+POST /v1/auth/refresh
+POST /v1/auth/logout
+GET  /v1/auth/me
+GET  /v1/auth/admin/users   ADMIN only
+```
+
+Passwords are hashed with Node.js `scrypt`; plaintext passwords are never stored. Refresh tokens are stored only as SHA-256 hashes and are revoked on rotation/logout.
+
+Production requires a secret of at least 32 characters:
+
+```text
+JWT_SECRET=<strong-random-secret>
+ACCESS_TOKEN_TTL_SECONDS=900
+REFRESH_TOKEN_TTL_DAYS=30
+```
+
+An optional `BOOTSTRAP_ADMIN_EMAIL` promotes only a matching registration to the `ADMIN` role. Leave it unset unless an initial administrator is intentionally being bootstrapped.
+
+Use an access token with:
+
+```text
+Authorization: Bearer <access-token>
+```
 
 ## Storage adapters
 
@@ -50,7 +81,7 @@ PostgreSQL migrations live in `migrations/`, are applied in filename order, and 
 
 ### MySQL
 
-MySQL 8.4 is now a first-class runtime persistence adapter rather than only a reference schema.
+MySQL 8.4 is a first-class runtime persistence adapter.
 
 ```bash
 STORAGE=mysql \
@@ -60,9 +91,9 @@ npm run db:migrate
 npm run db:contract:mysql
 ```
 
-MySQL migrations live in `schema/mysql/`, are applied in filename order, and are tracked in MySQL's own `schema_migrations` table. The MySQL repository implements the same `VenueRepository` contract as the PostgreSQL and memory adapters.
+MySQL migrations live in `schema/mysql/`, are applied in filename order, and are tracked in MySQL's own `schema_migrations` table.
 
-Both SQL backends enforce positive capacity and case-insensitive venue-name uniqueness.
+Both SQL backends support venues, users, refresh tokens, positive venue capacity, and case-insensitive uniqueness where required.
 
 ## Docker
 
@@ -86,7 +117,7 @@ Start everything with:
 docker compose up --build
 ```
 
-The production image runs the dialect-appropriate migrations before starting the server.
+The production image runs the dialect-appropriate migrations before starting the server. For production-mode containers, supply `JWT_SECRET`.
 
 MySQL is also exposed directly on the host for database tools:
 
@@ -109,11 +140,11 @@ PostgreSQL and MySQL use separate persistent Docker volumes.
 - Drizzle: PostgreSQL schema representation and Drizzle Kit checks.
 - TypeORM: PostgreSQL entity metadata validation with synchronization disabled.
 
-The ORM packages are development/tooling dependencies; the production image only carries runtime dependencies such as Express, Zod, `pg`, and `mysql2`.
+The ORM packages are development/tooling dependencies; the production image carries only runtime dependencies such as Express, Zod, `pg`, `mysql2`, and `jose`.
 
 CI runs a cross-ORM smoke test against PostgreSQL and independent runtime/E2E tests against both PostgreSQL and MySQL. See `docs/DATABASE-ARCHITECTURE.md` for database ownership rules.
 
-## API
+## Venue API
 
 ```text
 POST   /v1/venues
@@ -128,6 +159,8 @@ The HTTP contract is storage-independent: the same routes, validation, error con
 ### Browser documentation
 
 Open `http://localhost:3000/docs` for the PostgreSQL-backed stack or `http://localhost:3001/docs` for the MySQL-backed stack. Machine-readable OpenAPI is available at `/openapi.json` on either API.
+
+The public deployment is available at `https://backend2-api.onrender.com` with documentation at `/docs`.
 
 ### Capacity filtering
 
@@ -162,6 +195,9 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 - CORS
 - rate limiting with standard headers and `Retry-After`
 - centralized error handling
+- JWT access authentication
+- rotating/revocable refresh tokens
+- `USER` / `ADMIN` RBAC
 - graceful PostgreSQL/MySQL pool shutdown
 - migrations before container startup
 - Docker deployment
@@ -188,7 +224,7 @@ See `docs/BACKUP-RESTORE.md`, `docs/PRODUCTION-CHECKLIST.md`, and `SECURITY.md` 
 
 ## Tests and CI
 
-Unit/integration tests cover CRUD, UUIDs, pagination, search, capacity filtering, validation, duplicates, missing resources, sorting, readiness, and error contracts.
+Unit/integration tests cover CRUD, UUIDs, pagination, search, capacity filtering, validation, duplicates, missing resources, sorting, readiness, error contracts, registration, login, JWT authentication, refresh rotation, logout, and RBAC.
 
 CI additionally runs:
 
@@ -203,12 +239,12 @@ PostgreSQL 17 + MySQL 8.4 services
   -> typecheck
   -> production build
   -> Vitest
-  -> PostgreSQL compiled API E2E
-  -> MySQL compiled API E2E
+  -> PostgreSQL compiled API E2E (venues + auth)
+  -> MySQL compiled API E2E (venues + auth)
   -> dependency audit
   -> Docker build
   -> PostgreSQL production-image readiness smoke test
   -> MySQL production-image readiness smoke test
 ```
 
-The same compiled E2E scenario verifies health/readiness, create, case-insensitive duplicate conflict, filtered listing, get, update, delete, and post-delete `404` against both SQL adapters.
+The compiled E2E scenario verifies health/readiness, registration, login, authenticated profile, refresh-token rotation/reuse rejection, logout/revocation, venue CRUD, case-insensitive duplicate conflict, filtering, and post-delete `404` against both SQL adapters.
