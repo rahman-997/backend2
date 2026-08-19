@@ -19,7 +19,7 @@ export interface VenueListResult {
 }
 
 export interface VenueRepository {
-  create(input: CreateVenueInput): Promise<Venue>;
+  create(input: CreateVenueInput, ownerUserId: string): Promise<Venue>;
   list(query: VenueListQuery): Promise<VenueListResult>;
   getById(id: string): Promise<Venue | null>;
   findByNormalizedName(name: string, excludeId?: string): Promise<Venue | null>;
