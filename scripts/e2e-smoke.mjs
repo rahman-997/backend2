@@ -56,6 +56,71 @@ try {
   expectStatus(health.response.status, 200, "health");
   if (!health.response.headers.get("x-request-id")) throw new Error("health response is missing x-request-id");
 
+  const authId = randomUUID();
+  const authEmail = `e2e-auth-${authId}@example.com`;
+  const authPassword = `E2E-strong-password-${authId}`;
+  const registered = await request("/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ name: "E2E Auth User", email: authEmail, password: authPassword }),
+  });
+  expectStatus(registered.response.status, 201, "register user");
+  const firstAccessToken = registered.body?.data?.tokens?.accessToken;
+  const firstRefreshToken = registered.body?.data?.tokens?.refreshToken;
+  if (!firstAccessToken || !firstRefreshToken) throw new Error("register did not return auth tokens");
+
+  const duplicateUser = await request("/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ name: "Duplicate", email: authEmail.toUpperCase(), password: authPassword }),
+  });
+  expectStatus(duplicateUser.response.status, 409, "duplicate auth email");
+
+  const me = await request("/v1/auth/me", {
+    headers: { authorization: `Bearer ${firstAccessToken}` },
+  });
+  expectStatus(me.response.status, 200, "authenticated profile");
+  if (me.body?.data?.email !== authEmail) throw new Error("authenticated profile returned the wrong user");
+
+  const login = await request("/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: authEmail, password: authPassword }),
+  });
+  expectStatus(login.response.status, 200, "login user");
+
+  const refreshed = await request("/v1/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken: firstRefreshToken }),
+  });
+  expectStatus(refreshed.response.status, 200, "rotate refresh token");
+  const rotatedRefreshToken = refreshed.body?.data?.tokens?.refreshToken;
+  if (!rotatedRefreshToken || rotatedRefreshToken === firstRefreshToken) throw new Error("refresh token was not rotated");
+
+  expectStatus(
+    (await request("/v1/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: firstRefreshToken }),
+    })).response.status,
+    401,
+    "reject reused refresh token",
+  );
+
+  expectStatus(
+    (await request("/v1/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: rotatedRefreshToken }),
+    })).response.status,
+    204,
+    "logout user",
+  );
+
+  expectStatus(
+    (await request("/v1/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken: rotatedRefreshToken }),
+    })).response.status,
+    401,
+    "reject revoked refresh token",
+  );
+
   const token = randomUUID();
   const name = `E2E Venue ${token}`;
   const createPayload = {
