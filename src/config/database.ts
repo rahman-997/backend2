@@ -35,6 +35,7 @@ export const mysqlPool =
         waitForConnections: true,
         queueLimit: 0,
         enableKeepAlive: true,
+        timezone: "Z",
       })
     : null;
 
