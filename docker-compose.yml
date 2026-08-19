@@ -25,7 +25,6 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./schema/mysql/001_create_venues.sql:/docker-entrypoint-initdb.d/001_create_venues.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u backend2 -pbackend2 --silent"]
       interval: 5s
@@ -47,8 +46,28 @@ services:
       RATE_LIMIT_MAX: 100
       STORAGE: postgres
       DATABASE_URL: postgresql://backend2:backend2@db:5432/backend2
+      DB_POOL_MAX: 10
     depends_on:
       db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-mysql:
+    build: .
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      CORS_ORIGIN: "*"
+      RATE_LIMIT_WINDOW_MS: 60000
+      RATE_LIMIT_MAX: 100
+      STORAGE: mysql
+      MYSQL_URL: mysql://backend2:backend2@mysql:3306/backend2
+      DB_POOL_MAX: 10
+    depends_on:
+      mysql:
         condition: service_healthy
     restart: unless-stopped
 
