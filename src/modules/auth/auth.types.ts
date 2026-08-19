@@ -5,12 +5,14 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface UserRecord extends User {
   passwordHash: string;
+  tokenVersion: number;
 }
 
 export interface RefreshTokenRecord {
@@ -33,4 +35,5 @@ export interface AuthPrincipal {
   userId: string;
   email: string;
   role: UserRole;
+  tokenVersion: number;
 }

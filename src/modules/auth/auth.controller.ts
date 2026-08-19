@@ -19,6 +19,12 @@ export async function logout(req: Request, res: Response): Promise<void> {
   res.status(204).send();
 }
 
+export async function logoutAll(_req: Request, res: Response): Promise<void> {
+  const principal = res.locals.auth as AuthPrincipal;
+  await authService.logoutAll(principal.userId);
+  res.status(204).send();
+}
+
 export async function me(_req: Request, res: Response): Promise<void> {
   const principal = res.locals.auth as AuthPrincipal;
   res.status(200).json({ data: await authService.me(principal.userId) });
@@ -26,4 +32,16 @@ export async function me(_req: Request, res: Response): Promise<void> {
 
 export async function listUsers(_req: Request, res: Response): Promise<void> {
   res.status(200).json({ data: await authService.listUsers() });
+}
+
+export async function updateUserRole(req: Request, res: Response): Promise<void> {
+  const principal = res.locals.auth as AuthPrincipal;
+  const { id } = res.locals.validatedParams as { id: string };
+  res.status(200).json({ data: await authService.updateUserRole(principal.userId, id, req.body.role) });
+}
+
+export async function updateUserStatus(req: Request, res: Response): Promise<void> {
+  const principal = res.locals.auth as AuthPrincipal;
+  const { id } = res.locals.validatedParams as { id: string };
+  res.status(200).json({ data: await authService.updateUserStatus(principal.userId, id, req.body.isActive) });
 }

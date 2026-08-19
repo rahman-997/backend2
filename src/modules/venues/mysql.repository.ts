@@ -11,6 +11,7 @@ type VenueRow = RowDataPacket & {
   address: string;
   capacity: number;
   contact_email: string;
+  owner_user_id: string | null;
   created_at: Date | string;
 };
 
@@ -22,6 +23,7 @@ const toVenue = (row: VenueRow): Venue => ({
   address: String(row.address),
   capacity: Number(row.capacity),
   contactEmail: String(row.contact_email),
+  ownerUserId: row.owner_user_id == null ? null : String(row.owner_user_id),
   createdAt: new Date(row.created_at).toISOString(),
 });
 
@@ -35,11 +37,11 @@ const sortColumns = {
 export class MySqlVenueRepository implements VenueRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(input: CreateVenueInput): Promise<Venue> {
+  async create(input: CreateVenueInput, ownerUserId: string): Promise<Venue> {
     const id = randomUUID();
     await this.pool.execute(
-      "INSERT INTO venues (id, name, address, capacity, contact_email) VALUES (?, ?, ?, ?, ?)",
-      [id, input.name, input.address, input.capacity, input.contactEmail],
+      "INSERT INTO venues (id, name, address, capacity, contact_email, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)",
+      [id, input.name, input.address, input.capacity, input.contactEmail, ownerUserId],
     );
 
     const created = await this.getById(id);

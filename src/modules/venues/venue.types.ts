@@ -4,8 +4,15 @@ export interface Venue {
   address: string;
   capacity: number;
   contactEmail: string;
+  ownerUserId: string | null;
   createdAt: string;
 }
 
-export type CreateVenueInput = Omit<Venue, "id" | "createdAt">;
+export interface CreateVenueInput {
+  name: string;
+  address: string;
+  capacity: number;
+  contactEmail: string;
+}
+
 export type UpdateVenueInput = Partial<CreateVenueInput>;

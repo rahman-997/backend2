@@ -16,11 +16,15 @@ export const loginSchema = z
   .strict();
 
 export const refreshTokenSchema = z
-  .object({
-    refreshToken: z.string().min(32).max(512),
-  })
+  .object({ refreshToken: z.string().min(32).max(512) })
   .strict();
+
+export const userIdParamsSchema = z.object({ id: z.string().uuid() }).strict();
+export const updateUserRoleSchema = z.object({ role: z.enum(["USER", "ADMIN"]) }).strict();
+export const updateUserStatusSchema = z.object({ isActive: z.boolean() }).strict();
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
+export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;

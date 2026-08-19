@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { HttpError } from "../../errors/HttpError.js";
 import { verifyAccessToken } from "./auth.crypto.js";
+import { authRepository } from "./auth.repository.js";
 import type { AuthPrincipal, UserRole } from "./auth.types.js";
 
 export const authenticate: RequestHandler = async (req, res, next) => {
@@ -11,7 +12,18 @@ export const authenticate: RequestHandler = async (req, res, next) => {
     const token = header.slice("Bearer ".length).trim();
     if (!token) throw new HttpError(401, "Authentication required");
 
-    res.locals.auth = await verifyAccessToken(token);
+    const decoded = await verifyAccessToken(token);
+    const user = await authRepository.findUserById(decoded.userId);
+    if (!user || !user.isActive || user.tokenVersion !== decoded.tokenVersion) {
+      throw new HttpError(401, "Invalid or expired access token");
+    }
+
+    res.locals.auth = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    } satisfies AuthPrincipal;
     next();
   } catch (error) {
     next(error instanceof HttpError ? error : new HttpError(401, "Invalid or expired access token"));

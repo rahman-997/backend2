@@ -8,6 +8,7 @@ const toVenue = (row: any): Venue => ({
   address: String(row.address),
   capacity: Number(row.capacity),
   contactEmail: String(row.contact_email),
+  ownerUserId: row.owner_user_id == null ? null : String(row.owner_user_id),
   createdAt: new Date(row.created_at).toISOString(),
 });
 
@@ -21,10 +22,10 @@ const sortColumns = {
 export class PostgresVenueRepository implements VenueRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(input: CreateVenueInput): Promise<Venue> {
+  async create(input: CreateVenueInput, ownerUserId: string): Promise<Venue> {
     const r = await this.pool.query(
-      "INSERT INTO venues (name,address,capacity,contact_email) VALUES ($1,$2,$3,$4) RETURNING *",
-      [input.name, input.address, input.capacity, input.contactEmail],
+      "INSERT INTO venues (name,address,capacity,contact_email,owner_user_id) VALUES ($1,$2,$3,$4,$5) RETURNING *",
+      [input.name, input.address, input.capacity, input.contactEmail, ownerUserId],
     );
     return toVenue(r.rows[0]);
   }
@@ -89,7 +90,9 @@ export class PostgresVenueRepository implements VenueRepository {
     const fields: string[] = [];
     const values: unknown[] = [];
     for (const [key, value] of Object.entries(input)) {
-      fields.push(`${map[key]}=$${values.length + 1}`);
+      const column = map[key];
+      if (!column) continue;
+      fields.push(`${column}=$${values.length + 1}`);
       values.push(value);
     }
     if (!fields.length) return this.getById(id);

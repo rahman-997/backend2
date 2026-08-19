@@ -7,8 +7,8 @@ const normalizeName = (name: string): string => name.trim().toLocaleLowerCase();
 export class MemoryVenueRepository implements VenueRepository {
   private readonly store = new Map<string, Venue>();
 
-  async create(input: CreateVenueInput): Promise<Venue> {
-    const venue: Venue = { id: randomUUID(), ...input, createdAt: new Date().toISOString() };
+  async create(input: CreateVenueInput, ownerUserId: string): Promise<Venue> {
+    const venue: Venue = { id: randomUUID(), ...input, ownerUserId, createdAt: new Date().toISOString() };
     this.store.set(venue.id, venue);
     return venue;
   }
