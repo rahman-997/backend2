@@ -3,6 +3,8 @@ import type { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import type { CreateVenueInput, UpdateVenueInput, Venue } from "./venue.types.js";
 import type { VenueListQuery, VenueListResult, VenueRepository } from "./venue.repository.js";
 
+type SqlValue = string | number;
+
 type VenueRow = RowDataPacket & {
   id: string;
   name: string;
@@ -46,7 +48,7 @@ export class MySqlVenueRepository implements VenueRepository {
   }
 
   async list(q: VenueListQuery): Promise<VenueListResult> {
-    const values: unknown[] = [];
+    const values: SqlValue[] = [];
     const filters: string[] = [];
 
     if (q.search !== undefined) {
@@ -94,7 +96,7 @@ export class MySqlVenueRepository implements VenueRepository {
   }
 
   async findByNormalizedName(name: string, excludeId?: string): Promise<Venue | null> {
-    const values: unknown[] = [name.trim()];
+    const values: SqlValue[] = [name.trim()];
     let sql = "SELECT * FROM venues WHERE LOWER(name) = LOWER(?)";
 
     if (excludeId) {
@@ -115,9 +117,9 @@ export class MySqlVenueRepository implements VenueRepository {
     } as const;
 
     const fields: string[] = [];
-    const values: unknown[] = [];
+    const values: SqlValue[] = [];
 
-    for (const [key, value] of Object.entries(input) as [keyof UpdateVenueInput, unknown][]) {
+    for (const [key, value] of Object.entries(input) as [keyof UpdateVenueInput, SqlValue][]) {
       const column = columnMap[key];
       if (!column) continue;
       fields.push(`${column} = ?`);
