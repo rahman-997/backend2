@@ -9,8 +9,9 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     DATABASE_URL: z.string().url().optional(),
+    MYSQL_URL: z.string().url().optional(),
     DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
-    STORAGE: z.enum(["memory", "postgres"]).default("memory"),
+    STORAGE: z.enum(["memory", "postgres", "mysql"]).default("memory"),
   })
   .superRefine((value, ctx) => {
     if (value.STORAGE === "postgres" && !value.DATABASE_URL) {
@@ -18,6 +19,14 @@ const envSchema = z
         code: "custom",
         path: ["DATABASE_URL"],
         message: "DATABASE_URL is required when STORAGE=postgres",
+      });
+    }
+
+    if (value.STORAGE === "mysql" && !value.MYSQL_URL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MYSQL_URL"],
+        message: "MYSQL_URL is required when STORAGE=mysql",
       });
     }
   });
