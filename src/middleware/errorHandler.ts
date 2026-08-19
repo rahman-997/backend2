@@ -32,7 +32,7 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
-  if (isPostgresUniqueViolation(error)) {
+  if (isUniqueViolation(error)) {
     sendError(res, 409, {
       code: "CONFLICT",
       message: "A unique resource already exists",
@@ -54,8 +54,11 @@ function sendError(res: Response, statusCode: number, payload: ErrorPayload): vo
   res.status(statusCode).json({ error: payload });
 }
 
-function isPostgresUniqueViolation(error: unknown): error is { code: "23505" } {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+
+  const candidate = error as { code?: unknown; errno?: unknown };
+  return candidate.code === "23505" || candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062;
 }
 
 function statusCodeToErrorCode(statusCode: number): string {
