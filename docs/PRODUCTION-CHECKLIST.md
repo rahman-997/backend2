@@ -1,7 +1,13 @@
 # Production Checklist
 
-- [ ] PostgreSQL backup/restore procedure documented
-- [ ] `DATABASE_URL` supplied through secrets, never committed
+- [ ] Choose exactly one runtime storage per deployed API process (`postgres` or `mysql`)
+- [ ] `DATABASE_URL` supplied through secrets for PostgreSQL deployments
+- [ ] `MYSQL_URL` supplied through secrets for MySQL deployments
+- [ ] no database credentials committed to source control
+- [ ] PostgreSQL backup/restore procedure tested when PostgreSQL is deployed
+- [ ] MySQL backup/restore procedure tested when MySQL is deployed
+- [ ] backup retention, encryption, and off-site storage configured
+- [ ] restore drill completed and RPO/RTO recorded
 - [ ] `NODE_ENV=production`
 - [ ] CORS restricted to known origins
 - [ ] TLS terminated at the deployment edge
@@ -10,11 +16,15 @@
 - [ ] graceful SIGTERM shutdown verified
 - [ ] rate limiting configured for production traffic
 - [ ] structured request IDs and logs collected
-- [ ] migrations run as a deployment step
+- [ ] dialect-appropriate migrations run before application startup
+- [ ] PostgreSQL `npm run db:contract` passes when PostgreSQL is selected
+- [ ] MySQL `npm run db:contract:mysql` passes when MySQL is selected
 - [ ] `synchronize` disabled for ORM integrations
-- [ ] CI typecheck/build/test/audit/Docker all green
+- [ ] Prisma/Drizzle/TypeORM tooling is not used to mutate production schema automatically
+- [ ] CI typecheck/build/tests/E2E/audit/Docker gates are green
+- [ ] both PostgreSQL and MySQL runtime smoke tests are green
 - [ ] dependency update policy established
-- [ ] PostgreSQL backup retention configured
-- [ ] database connection pool sized for deployment
-- [ ] error responses do not expose stack traces or secrets
+- [ ] database connection pool sized for the deployment tier
+- [ ] error responses do not expose stack traces, SQL text, or secrets
 - [ ] OpenAPI reviewed and published
+- [ ] production database metrics/alerts configured for connections, latency, disk, and errors
