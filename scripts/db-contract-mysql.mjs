@@ -42,7 +42,9 @@ try {
 
   const name = byName.get("name");
   if (name.DATA_TYPE !== "varchar" || Number(name.CHARACTER_MAXIMUM_LENGTH) !== 255) fail("name must be VARCHAR(255)");
-  if (!String(name.COLLATION_NAME ?? "").toLowerCase().endsWith("_ci")) fail("name must use a case-insensitive collation");
+  if (String(name.COLLATION_NAME ?? "").toLowerCase() !== "utf8mb4_0900_as_ci") {
+    fail("name must use utf8mb4_0900_as_ci collation");
+  }
 
   const address = byName.get("address");
   if (address.DATA_TYPE !== "varchar" || Number(address.CHARACTER_MAXIMUM_LENGTH) !== 2000) fail("address must be VARCHAR(2000)");
