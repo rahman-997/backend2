@@ -16,6 +16,8 @@
     "db:contract:mysql": "node scripts/db-contract-mysql.mjs",
     "db:backup": "node scripts/backup-postgres.mjs",
     "db:restore": "node scripts/restore-postgres.mjs",
+    "db:backup:mysql": "node scripts/backup-mysql.mjs",
+    "db:restore:mysql": "node scripts/restore-mysql.mjs",
     "db:prisma:generate": "prisma generate",
     "db:prisma:validate": "prisma validate",
     "db:drizzle:check": "drizzle-kit check",
