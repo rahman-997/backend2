@@ -76,12 +76,20 @@ export class MySqlVenueRepository implements VenueRepository {
       values,
     );
 
+    if (!Number.isSafeInteger(q.limit) || q.limit < 1 || !Number.isSafeInteger(q.page) || q.page < 1) {
+      throw new TypeError("MySQL pagination requires positive safe integers");
+    }
+
     const offset = (q.page - 1) * q.limit;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new TypeError("MySQL pagination offset is outside the safe integer range");
+    }
+
     const sortColumn = sortColumns[q.sortBy];
     const direction = q.order === "asc" ? "ASC" : "DESC";
     const [rows] = await this.pool.execute<VenueRow[]>(
-      `SELECT * FROM venues ${where} ORDER BY ${sortColumn} ${direction}, id ASC LIMIT ? OFFSET ?`,
-      [...values, q.limit, offset],
+      `SELECT * FROM venues ${where} ORDER BY ${sortColumn} ${direction}, id ASC LIMIT ${q.limit} OFFSET ${offset}`,
+      values,
     );
 
     return {
