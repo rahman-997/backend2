@@ -1,6 +1,6 @@
 # backend2
 
-Production-oriented Express 5 + TypeScript + Zod 4 API with layered venue management, multi-database persistence, authentication, refresh-token rotation, and role-based access control.
+Production-oriented Express 5 + TypeScript + Zod 4 API with PostgreSQL/MySQL persistence, JWT authentication, immediate session revocation, venue ownership, RBAC, and audit logging.
 
 ```text
 HTTP -> security -> request ID -> logging -> routes -> Zod -> controller -> service -> repository -> storage
@@ -8,6 +8,10 @@ HTTP -> security -> request ID -> logging -> routes -> Zod -> controller -> serv
                                                                                  |-> PostgreSQL
                                                                                  |-> MySQL
 ```
+
+## Version 2.0
+
+`v2.0.0` is a security-focused breaking release: venue reads remain public, but create/update/delete operations now require authentication. A normal user may mutate only venues they own; an `ADMIN` may mutate any venue. Legacy venues without an owner are admin-managed until ownership is migrated deliberately.
 
 ## Run
 
@@ -22,22 +26,22 @@ Local verification:
 npm run verify
 ```
 
-`verify` runs TypeScript typechecking, a production build, and the Vitest suite.
-
-## Authentication and RBAC
-
-Authentication uses signed JWT access tokens and opaque rotating refresh tokens.
+## Authentication, sessions and RBAC
 
 ```text
-POST /v1/auth/register
-POST /v1/auth/login
-POST /v1/auth/refresh
-POST /v1/auth/logout
-GET  /v1/auth/me
-GET  /v1/auth/admin/users   ADMIN only
+POST  /v1/auth/register
+POST  /v1/auth/login
+POST  /v1/auth/refresh
+POST  /v1/auth/logout
+POST  /v1/auth/logout-all       authenticated
+GET   /v1/auth/me               authenticated
+GET   /v1/auth/admin/users      ADMIN
+PATCH /v1/auth/admin/users/:id/role    ADMIN
+PATCH /v1/auth/admin/users/:id/status  ADMIN
+GET   /v1/admin/audit-logs      ADMIN
 ```
 
-Passwords are hashed with Node.js `scrypt`; plaintext passwords are never stored. Refresh tokens are stored only as SHA-256 hashes and are revoked on rotation/logout.
+Passwords are hashed with Node.js `scrypt`. Refresh tokens are opaque random values and only SHA-256 hashes are stored. Refresh tokens rotate on refresh. `logout-all`, account status changes, and role changes increment a per-user token version, immediately invalidating previously issued access tokens as well as revoking refresh tokens.
 
 Production requires a secret of at least 32 characters:
 
@@ -47,17 +51,27 @@ ACCESS_TOKEN_TTL_SECONDS=900
 REFRESH_TOKEN_TTL_DAYS=30
 ```
 
-An optional `BOOTSTRAP_ADMIN_EMAIL` promotes only a matching registration to the `ADMIN` role. Leave it unset unless an initial administrator is intentionally being bootstrapped.
-
-Use an access token with:
+An optional `BOOTSTRAP_ADMIN_EMAIL` promotes only the matching registration to `ADMIN`. Use access tokens as:
 
 ```text
 Authorization: Bearer <access-token>
 ```
 
+## Venue ownership
+
+```text
+POST   /v1/venues                  authenticated; caller becomes owner
+GET    /v1/venues                  public
+GET    /v1/venues/:id              public
+PATCH  /v1/venues/:id              owner or ADMIN
+DELETE /v1/venues/:id              owner or ADMIN
+```
+
+Venue responses include `ownerUserId`. Successful create/update/delete operations are written to the audit log. Administrative role/status changes and important authentication events are audited without passwords or token material.
+
 ## Storage adapters
 
-The application supports three runtime storage modes:
+The same application contract supports:
 
 ```text
 STORAGE=memory
@@ -67,184 +81,139 @@ STORAGE=mysql
 
 ### PostgreSQL
 
-PostgreSQL remains the default production target and the database used by Prisma/Drizzle/TypeORM compatibility tooling.
+PostgreSQL is the canonical production/schema target for Prisma, Drizzle and TypeORM compatibility tooling.
 
 ```bash
 STORAGE=postgres \
 DATABASE_URL=postgresql://backend2:backend2@localhost:5432/backend2 \
 npm run db:migrate
-
 npm run db:contract
 ```
 
-PostgreSQL migrations live in `migrations/`, are applied in filename order, and are tracked in `schema_migrations`.
+Canonical migrations live in `migrations/` and are tracked in `schema_migrations`.
 
 ### MySQL
 
-MySQL 8.4 is a first-class runtime persistence adapter.
+MySQL 8.4 is a first-class runtime adapter with independent migrations:
 
 ```bash
 STORAGE=mysql \
 MYSQL_URL=mysql://backend2:backend2@localhost:3307/backend2 \
 npm run db:migrate
-
 npm run db:contract:mysql
 ```
 
-MySQL migrations live in `schema/mysql/`, are applied in filename order, and are tracked in MySQL's own `schema_migrations` table.
+MySQL migrations live in `schema/mysql/`.
 
-Both SQL backends support venues, users, refresh tokens, positive venue capacity, and case-insensitive uniqueness where required.
+Both SQL backends now contain `venues`, `users`, `refresh_tokens`, and `audit_logs`, plus ownership, account-state, token-version and supporting indexes/constraints.
 
 ## Docker
 
-Docker Compose runs two complete API/database stacks from the same application image:
+Docker Compose runs both complete stacks from the same application image:
 
 ```text
-http://localhost:3000
-API (STORAGE=postgres)
-        |
-        +-- PostgreSQL 17
-
-http://localhost:3001
-API (STORAGE=mysql)
-        |
-        +-- MySQL 8.4
+http://localhost:3000 -> API -> PostgreSQL 17
+http://localhost:3001 -> API -> MySQL 8.4
 ```
 
-Start everything with:
+Start everything:
 
 ```bash
 docker compose up --build
 ```
 
-The production image runs the dialect-appropriate migrations before starting the server. For production-mode containers, supply `JWT_SECRET`.
-
-MySQL is also exposed directly on the host for database tools:
-
-```text
-Host: localhost
-Port: 3307
-Database: backend2
-User: backend2
-Password: backend2
-```
-
-PostgreSQL and MySQL use separate persistent Docker volumes.
+The production image runs the selected dialect's migrations before starting the server. Production-mode containers require `JWT_SECRET`.
 
 ## Database and schema tooling
 
-- PostgreSQL + SQL migrations: default production database and canonical ORM compatibility target.
-- MySQL 8.4 + MySQL migrations: supported production/runtime database adapter.
-- Zod: API request/query validation.
-- Prisma: PostgreSQL schema representation, validation, generated client tooling.
-- Drizzle: PostgreSQL schema representation and Drizzle Kit checks.
-- TypeORM: PostgreSQL entity metadata validation with synchronization disabled.
+- SQL migrations: canonical schema ownership.
+- Zod: HTTP boundary validation.
+- Prisma: PostgreSQL schema/client compatibility tooling.
+- Drizzle: PostgreSQL schema/Drizzle Kit compatibility tooling.
+- TypeORM: PostgreSQL metadata compatibility with `synchronize: false`.
 
-The ORM packages are development/tooling dependencies; the production image carries only runtime dependencies such as Express, Zod, `pg`, `mysql2`, and `jose`.
+Prisma/Drizzle/TypeORM do not independently mutate production schema. Their venue mappings include the nullable ownership column and are validated against the canonical PostgreSQL model.
 
-CI runs a cross-ORM smoke test against PostgreSQL and independent runtime/E2E tests against both PostgreSQL and MySQL. See `docs/DATABASE-ARCHITECTURE.md` for database ownership rules.
+## Querying venues
 
-## Venue API
+Example:
 
 ```text
-POST   /v1/venues
-GET    /v1/venues?page=1&limit=20&search=hall&minCapacity=100&maxCapacity=5000&sortBy=capacity&order=desc
-GET    /v1/venues/:id
-PATCH  /v1/venues/:id
-DELETE /v1/venues/:id
+GET /v1/venues?page=1&limit=20&search=hall&minCapacity=100&maxCapacity=5000&sortBy=capacity&order=desc
 ```
 
-The HTTP contract is storage-independent: the same routes, validation, error contract, filtering, sorting, and pagination are used for memory, PostgreSQL, and MySQL.
+- `page`: 1..10000
+- `limit`: 1..100
+- `search`: up to 100 characters across name/address
+- `minCapacity` / `maxCapacity`: inclusive non-negative integer bounds
+- `sortBy`: `createdAt`, `name`, `address`, `capacity`
+- `order`: `asc` or `desc`
 
-### Browser documentation
+Unknown sort fields, invalid ranges, negative/fractional capacity bounds, malformed UUIDs and invalid payloads are rejected before business logic executes.
 
-Open `http://localhost:3000/docs` for the PostgreSQL-backed stack or `http://localhost:3001/docs` for the MySQL-backed stack. Machine-readable OpenAPI is available at `/openapi.json` on either API.
+## Documentation and production
 
-The public deployment is available at `https://backend2-api.onrender.com` with documentation at `/docs`.
+Local docs:
 
-### Capacity filtering
+```text
+http://localhost:3000/docs
+http://localhost:3001/docs
+```
 
-`minCapacity` and `maxCapacity` are optional, non-negative integers.
+Machine-readable OpenAPI is at `/openapi.json`. The public deployment is available at `https://backend2-api.onrender.com` with docs at `/docs`.
 
-- `minCapacity` means `capacity >= minCapacity`.
-- `maxCapacity` means `capacity <= maxCapacity`.
-- Both boundaries are inclusive.
-- `minCapacity=maxCapacity` performs an exact-capacity match.
-- `minCapacity > maxCapacity` is rejected with HTTP `400`.
-- Negative and fractional capacity filters are rejected with HTTP `400`.
-- No matches returns HTTP `200` with an empty `data` array and pagination metadata showing `total: 0`.
-
-### Search, sorting and pagination
-
-- `page`: integer from `1` to `10000`.
-- `limit`: integer from `1` to `100`.
-- `search`: up to 100 characters; searches name and address.
-- `sortBy`: `createdAt`, `name`, `address`, or `capacity`.
-- `order`: `asc` or `desc`.
-- Sorting uses an allowlist and never interpolates an arbitrary user-provided column.
-
-List responses include pagination metadata. Venue IDs are server-generated UUIDs.
-
-## Operations
+## Operations and security
 
 - `/health` liveness
 - `/ready` selected-storage readiness
-- request IDs
-- structured request logging
-- Helmet
-- CORS
-- rate limiting with standard headers and `Retry-After`
-- centralized error handling
-- JWT access authentication
-- rotating/revocable refresh tokens
-- `USER` / `ADMIN` RBAC
+- request IDs and structured request logs
+- Helmet, CORS, rate limiting and 1 MB JSON limit
+- centralized error contract
 - graceful PostgreSQL/MySQL pool shutdown
-- migrations before container startup
-- Docker deployment
+- JWT issuer/audience/algorithm verification
+- `USER` / `ADMIN` RBAC
+- ownership authorization
+- immediate access-token invalidation through token versions
+- refresh-token rotation/revocation and expired-token cleanup
+- admin account enable/disable and role management
+- audit logs with pagination/filtering
+- migrations before runtime startup
+- PostgreSQL/MySQL backup and restore scripts
+- Dependabot and dependency audit
+- Docker production-image smoke tests
 - GitHub Actions quality gates
-- PostgreSQL and MySQL backup/restore scripts
-- Dependabot
-- documented security policy
 
-### PostgreSQL backup / restore
+### Backup / restore
 
 ```bash
 npm run db:backup
 CONFIRM_RESTORE=yes npm run db:restore -- backups/backend2-<timestamp>.dump
-```
 
-### MySQL backup / restore
-
-```bash
 npm run db:backup:mysql
 CONFIRM_RESTORE=yes npm run db:restore:mysql -- backups/backend2-mysql-<timestamp>.sql
 ```
 
-See `docs/BACKUP-RESTORE.md`, `docs/PRODUCTION-CHECKLIST.md`, and `SECURITY.md` before production deployment.
+See `docs/BACKUP-RESTORE.md`, `docs/DATABASE-ARCHITECTURE.md`, `docs/PRODUCTION-CHECKLIST.md`, and `SECURITY.md`.
 
-## Tests and CI
+## CI
 
-Unit/integration tests cover CRUD, UUIDs, pagination, search, capacity filtering, validation, duplicates, missing resources, sorting, readiness, error contracts, registration, login, JWT authentication, refresh rotation, logout, and RBAC.
-
-CI additionally runs:
+GitHub Actions validates:
 
 ```text
-PostgreSQL 17 + MySQL 8.4 services
-  -> PostgreSQL migrations + contract validation
+PostgreSQL 17 + MySQL 8.4
+  -> migrations
+  -> database contracts (venues + auth + ownership + audit)
   -> Prisma validation/generation
   -> Drizzle schema check
   -> TypeORM metadata validation
-  -> cross-ORM PostgreSQL interoperability smoke test
-  -> MySQL migrations + contract validation
+  -> cross-ORM PostgreSQL smoke test
   -> typecheck
   -> production build
   -> Vitest
-  -> PostgreSQL compiled API E2E (venues + auth)
-  -> MySQL compiled API E2E (venues + auth)
+  -> PostgreSQL compiled API E2E (auth + ownership + venues)
+  -> MySQL compiled API E2E (auth + ownership + venues)
   -> dependency audit
   -> Docker build
-  -> PostgreSQL production-image readiness smoke test
-  -> MySQL production-image readiness smoke test
+  -> PostgreSQL production-image readiness
+  -> MySQL production-image readiness
 ```
-
-The compiled E2E scenario verifies health/readiness, registration, login, authenticated profile, refresh-token rotation/reuse rejection, logout/revocation, venue CRUD, case-insensitive duplicate conflict, filtering, and post-delete `404` against both SQL adapters.
