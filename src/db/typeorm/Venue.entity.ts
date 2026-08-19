@@ -1,7 +1,6 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, Unique, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity({ name: "venues" })
-@Unique("UQ_venues_name", ["name"])
 export class VenueEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -9,7 +8,7 @@ export class VenueEntity {
   @Column({ type: "varchar", length: 255 })
   name!: string;
 
-  @Column({ type: "varchar", length: 2000 })
+  @Column({ type: "text" })
   address!: string;
 
   @Column({ type: "integer" })
@@ -17,6 +16,9 @@ export class VenueEntity {
 
   @Column({ name: "contact_email", type: "varchar", length: 320 })
   contactEmail!: string;
+
+  @Column({ name: "owner_user_id", type: "uuid", nullable: true })
+  ownerUserId!: string | null;
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
