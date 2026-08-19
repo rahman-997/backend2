@@ -34,11 +34,34 @@ npm run db:contract
 
 Migrations are discovered in filename order and tracked in `schema_migrations`, so each migration is applied once and failed migrations are rolled back. `db:contract` inspects the real PostgreSQL catalog and verifies the expected `venues` columns, UUID/defaults, positive-capacity constraint, case-insensitive unique-name index, and core indexes.
 
-Docker runs PostgreSQL, applies all pending migrations, and starts the API:
+## Docker
+
+Docker Compose now starts three services:
+
+```text
+api
+├── PostgreSQL (active API storage)
+└── MySQL 8.4 (compatibility/reference database)
+```
+
+Start the full stack with:
 
 ```bash
 docker compose up --build
 ```
+
+The API remains connected to PostgreSQL through `STORAGE=postgres`. MySQL is now a real Dockerized database rather than only a SQL file: it initializes `schema/mysql/001_create_venues.sql` automatically on first startup and persists data in the `mysql_data` volume.
+
+MySQL is exposed on the host at:
+
+```text
+localhost:3307
+Database: backend2
+User: backend2
+Password: backend2
+```
+
+Inside the Docker network it is available as `mysql:3306`.
 
 ## Database and schema tooling
 
@@ -49,7 +72,7 @@ SQL migrations are the source of truth for production schema changes.
 - Prisma: schema representation, validation, and generated client tooling.
 - Drizzle: schema representation and Drizzle Kit checks.
 - TypeORM: entity metadata validation with synchronization disabled.
-- MySQL: reference/equivalent schema only; it is not the active production adapter.
+- MySQL 8.4: Dockerized compatibility database initialized from the equivalent MySQL schema; it is not yet the active API persistence adapter.
 
 The ORM packages are development/tooling dependencies, so the production Docker image does not carry unused ORM runtimes. CI runs a cross-ORM smoke test that writes with Prisma, reads with Drizzle, updates with TypeORM, verifies the update with Prisma, and deletes with Drizzle against the same PostgreSQL table.
 
@@ -116,6 +139,7 @@ List responses include pagination metadata. Venue IDs are server-generated UUIDs
 - centralized errors
 - graceful database shutdown
 - lean production Docker runtime
+- PostgreSQL + MySQL Docker services
 - GitHub Actions quality gates
 - guarded PostgreSQL backup/restore scripts
 - Dependabot for npm and GitHub Actions updates
