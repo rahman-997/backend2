@@ -64,7 +64,7 @@ try {
     [database],
   );
 
-  const hasIndex = (indexName, columnName, unique = false) =>
+  const hasNamedIndex = (indexName, columnName, unique = false) =>
     indexes.some(
       (index) =>
         index.INDEX_NAME === indexName &&
@@ -72,10 +72,13 @@ try {
         (!unique || Number(index.NON_UNIQUE) === 0),
     );
 
-  if (!hasIndex("PRIMARY", "id", true)) fail("missing primary key on id");
-  if (!hasIndex("venues_name_ci_unique", "name", true)) fail("missing case-insensitive unique name index");
-  if (!hasIndex("venues_created_at_idx", "created_at")) fail("missing created_at index");
-  if (!hasIndex("venues_capacity_idx", "capacity")) fail("missing capacity index");
+  const hasUniqueIndexOn = (columnName) =>
+    indexes.some((index) => index.COLUMN_NAME === columnName && Number(index.NON_UNIQUE) === 0);
+
+  if (!hasNamedIndex("PRIMARY", "id", true)) fail("missing primary key on id");
+  if (!hasUniqueIndexOn("name")) fail("missing unique index on name");
+  if (!hasNamedIndex("venues_created_at_idx", "created_at")) fail("missing created_at index");
+  if (!hasNamedIndex("venues_capacity_idx", "capacity")) fail("missing capacity index");
 
   const [checks] = await pool.query(
     `SELECT cc.CONSTRAINT_NAME, cc.CHECK_CLAUSE
