@@ -12,6 +12,10 @@ const envSchema = z
     MYSQL_URL: z.string().url().optional(),
     DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
     STORAGE: z.enum(["memory", "postgres", "mysql"]).default("memory"),
+    JWT_SECRET: z.string().min(32).optional(),
+    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(86_400).default(900),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(365).default(30),
+    BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.STORAGE === "postgres" && !value.DATABASE_URL) {
@@ -27,6 +31,14 @@ const envSchema = z
         code: "custom",
         path: ["MYSQL_URL"],
         message: "MYSQL_URL is required when STORAGE=mysql",
+      });
+    }
+
+    if (value.NODE_ENV === "production" && !value.JWT_SECRET) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["JWT_SECRET"],
+        message: "JWT_SECRET is required in production",
       });
     }
   });
