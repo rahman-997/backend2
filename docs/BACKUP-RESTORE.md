@@ -1,28 +1,36 @@
-# PostgreSQL Backup and Restore
+# Database Backup and Restore
 
-PostgreSQL is the canonical production database. Backups should be tested regularly; a backup that has never been restored is not considered verified.
+Backups should be tested regularly. A backup that has never been restored is not considered verified.
 
-## Prerequisites
+## PostgreSQL
 
-Install PostgreSQL client tools so `pg_dump` and `pg_restore` are available in `PATH`, and set `DATABASE_URL` to the target database.
+### Prerequisites
 
-## Create a backup
+Install PostgreSQL client tools so `pg_dump` and `pg_restore` are available in `PATH`, and set `DATABASE_URL`.
+
+### Backup
 
 ```bash
 npm run db:backup
 ```
 
-Backups are written to `backups/backend2-<timestamp>.dump` by default. To choose a path:
+Default output:
+
+```text
+backups/backend2-<timestamp>.dump
+```
+
+Custom path:
 
 ```bash
 npm run db:backup -- backups/manual.dump
 ```
 
-The dump uses PostgreSQL custom format and excludes ownership/privilege metadata so it is portable between environments.
+The dump uses PostgreSQL custom format and excludes ownership/privilege metadata.
 
-## Restore a backup
+### Restore
 
-Restore is destructive and requires an explicit confirmation environment variable.
+Restore is destructive and requires explicit confirmation.
 
 macOS/Linux:
 
@@ -38,26 +46,76 @@ npm run db:restore -- backups/manual.dump
 Remove-Item Env:CONFIRM_RESTORE
 ```
 
-After a restore, validate the canonical schema and application behavior:
+After restoring PostgreSQL:
 
 ```bash
+STORAGE=postgres npm run db:migrate
 npm run db:contract
-npm run build
-npm run test:e2e
+STORAGE=postgres npm run test:e2e
 ```
 
-## Docker Compose alternative
+## MySQL
 
-For a quick logical SQL dump from the local Compose database:
+### Prerequisites
+
+Install MySQL client tools so `mysqldump` and `mysql` are available in `PATH`, and set `MYSQL_URL`.
+
+### Backup
 
 ```bash
-docker compose exec -T db pg_dump -U backend2 -d backend2 > backend2.sql
+npm run db:backup:mysql
 ```
 
-Restore into an empty/local database only after reviewing the target:
+Default output:
+
+```text
+backups/backend2-mysql-<timestamp>.sql
+```
+
+Custom path:
 
 ```bash
-cat backend2.sql | docker compose exec -T db psql -U backend2 -d backend2
+npm run db:backup:mysql -- backups/mysql-manual.sql
 ```
 
-Production backup retention, encryption, off-site storage, restore drills, and RPO/RTO targets should be configured in the deployment platform rather than committed as credentials in this repository.
+The script uses a consistent transactional dump where possible, avoids table locks, and does not pass the database password as a visible command-line argument.
+
+### Restore
+
+macOS/Linux:
+
+```bash
+CONFIRM_RESTORE=yes npm run db:restore:mysql -- backups/mysql-manual.sql
+```
+
+PowerShell:
+
+```powershell
+$env:CONFIRM_RESTORE="yes"
+npm run db:restore:mysql -- backups/mysql-manual.sql
+Remove-Item Env:CONFIRM_RESTORE
+```
+
+After restoring MySQL:
+
+```bash
+STORAGE=mysql npm run db:migrate
+npm run db:contract:mysql
+STORAGE=mysql npm run test:e2e
+```
+
+## Docker Compose quick dumps
+
+PostgreSQL:
+
+```bash
+docker compose exec -T db pg_dump -U backend2 -d backend2 > backend2-postgres.sql
+```
+
+MySQL:
+
+```bash
+docker compose exec -T mysql mysqldump -u backend2 -pbackend2 --no-tablespaces backend2 > backend2-mysql.sql
+```
+
+For restore operations, review the target carefully and stop API writes first. Production retention, encryption, off-site storage, restore drills, and RPO/RTO targets belong in the deployment platform rather than in committed credentials.
