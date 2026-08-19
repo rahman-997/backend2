@@ -13,6 +13,27 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: backend2
+      MYSQL_USER: backend2
+      MYSQL_PASSWORD: backend2
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema/mysql/001_create_venues.sql:/docker-entrypoint-initdb.d/001_create_venues.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u backend2 -pbackend2 --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
   api:
     build: .
     ports:
@@ -29,6 +50,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
+
 volumes:
   postgres_data:
+  mysql_data:
