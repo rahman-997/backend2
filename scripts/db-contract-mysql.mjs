@@ -15,6 +15,7 @@ const pool = mysql.createPool({
   password: decodeURIComponent(url.password),
   database,
   connectionLimit: 2,
+  timezone: "Z",
 });
 
 const fail = (message) => {
@@ -91,7 +92,7 @@ try {
   );
 
   const capacityCheck = checks.find((check) => check.CONSTRAINT_NAME === "venues_capacity_positive");
-  if (!capacityCheck || !/capacity\s*>\s*0/i.test(String(capacityCheck.CHECK_CLAUSE))) {
+  if (!capacityCheck || !/`?capacity`?\s*>\s*0/i.test(String(capacityCheck.CHECK_CLAUSE))) {
     fail("missing positive-capacity CHECK constraint");
   }
 
