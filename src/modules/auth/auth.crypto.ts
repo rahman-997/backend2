@@ -37,7 +37,7 @@ export async function verifyPassword(password: string, encoded: string): Promise
 }
 
 export async function signAccessToken(user: UserRecord): Promise<string> {
-  return new SignJWT({ email: user.email, role: user.role })
+  return new SignJWT({ email: user.email, role: user.role, ver: user.tokenVersion })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(user.id)
     .setIssuer(JWT_ISSUER)
@@ -54,11 +54,18 @@ export async function verifyAccessToken(token: string): Promise<AuthPrincipal> {
     algorithms: ["HS256"],
   });
 
-  if (!payload.sub || typeof payload.email !== "string" || (payload.role !== "USER" && payload.role !== "ADMIN")) {
+  if (
+    !payload.sub ||
+    typeof payload.email !== "string" ||
+    (payload.role !== "USER" && payload.role !== "ADMIN") ||
+    typeof payload.ver !== "number" ||
+    !Number.isInteger(payload.ver) ||
+    payload.ver < 0
+  ) {
     throw new Error("Invalid access token claims");
   }
 
-  return { userId: payload.sub, email: payload.email, role: payload.role };
+  return { userId: payload.sub, email: payload.email, role: payload.role, tokenVersion: payload.ver };
 }
 
 export function createRefreshToken(): string {
