@@ -1,4 +1,5 @@
 import { Router } from "express";
+import auditRoutes from "../modules/audit/audit.routes.js";
 import authRoutes from "../modules/auth/auth.routes.js";
 import venueRoutes from "../modules/venues/venue.routes.js";
 import healthRoutes from "./health.routes.js";
@@ -11,6 +12,7 @@ router.use(healthRoutes);
 router.use(docsRoutes);
 router.get("/openapi.json", (_req, res) => res.json(openapi));
 router.use("/v1/auth", authRoutes);
+router.use("/v1/admin/audit-logs", auditRoutes);
 router.use("/v1/venues", venueRoutes);
 
 export default router;
