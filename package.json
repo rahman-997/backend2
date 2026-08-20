@@ -9,7 +9,7 @@
     "start": "prisma migrate deploy && node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm test && npm run build",
+    "verify": "npm run prisma:generate && npm run typecheck && npm test && npm run build",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
