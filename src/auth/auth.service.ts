@@ -1,5 +1,6 @@
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
+import type { AuthUser } from "./tokens.js";
 import { authRepository, type SignupRole } from "./auth.repository.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createRefreshToken, hashRefreshToken, signAccessToken } from "./tokens.js";
@@ -99,4 +100,21 @@ export async function refresh(rawToken: string | undefined) {
     accessToken: await signAccessToken({ sub: result.user.id, role: result.user.role }),
     refreshToken: next.raw,
   };
+}
+
+export async function getMe(actor: AuthUser) {
+  const user = await authRepository.findUserById(actor.sub);
+  if (!user) throw new HttpError(401, "Account no longer exists");
+  return toPublicUser(user);
+}
+
+export async function logout(rawToken: string | undefined) {
+  if (!rawToken) return;
+  await prisma.refreshToken.updateMany({
+    where: {
+      tokenHash: hashRefreshToken(rawToken),
+      revokedAt: null,
+    },
+    data: { revokedAt: new Date() },
+  });
 }
