@@ -1,4 +1,8 @@
 import { app } from "./app.js";
 
-const port = 3000;
-app.listen(port, () => console.log(`Eventify listening on http://localhost:${port}`));
+const port = Number(process.env.PORT ?? 3000);
+const host = process.env.HOST ?? "0.0.0.0";
+
+app.listen(port, host, () => {
+  console.log(`Eventify listening on http://${host}:${port}`);
+});
