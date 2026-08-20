@@ -1,35 +1,37 @@
 import { z } from "zod";
-import { HttpError } from "../errors/http-error.js";
 import type { AuthUser } from "../auth/tokens.js";
-import type { ListEventsQuery } from "./events.schemas.js";
+import { eventCache } from "../cache/event-cache.js";
+import { HttpError } from "../errors/http-error.js";
 import { eventsRepository, type EventCreateInput } from "./events.repository.js";
+import type { ListEventsQuery } from "./events.schemas.js";
 
 function enrichAvailability<T extends { capacity: number; _count: { bookings: number } }>(event: T) {
   const { _count, ...rest } = event;
   const confirmedBookings = _count.bookings;
   const remainingSeats = Math.max(0, event.capacity - confirmedBookings);
-  return {
-    ...rest,
-    confirmedBookings,
-    remainingSeats,
-    soldOut: remainingSeats === 0,
-  };
+  return { ...rest, confirmedBookings, remainingSeats, soldOut: remainingSeats === 0 };
 }
 
-export function createEvent(input: EventCreateInput, actor: AuthUser) {
-  return eventsRepository.create(input, actor.sub);
+export async function createEvent(input: EventCreateInput, actor: AuthUser) {
+  const created = await eventsRepository.create(input, actor.sub);
+  await eventCache.invalidateCollection();
+  return created;
 }
 
-export async function listEvents(query: ListEventsQuery) {
-  const { data, total } = await eventsRepository.list(query);
-  return { data: data.map(enrichAvailability), page: query.page, limit: query.limit, total };
+export function listEvents(query: ListEventsQuery) {
+  return eventCache.list(query, async () => {
+    const { data, total } = await eventsRepository.list(query);
+    return { data: data.map(enrichAvailability), page: query.page, limit: query.limit, total };
+  });
 }
 
 export async function getEvent(id: string) {
   if (!z.uuid().safeParse(id).success) throw new HttpError(404, "Event not found");
-  const event = await eventsRepository.findById(id);
-  if (!event) throw new HttpError(404, "Event not found");
-  return enrichAvailability(event);
+  return eventCache.detail(id, async () => {
+    const event = await eventsRepository.findById(id);
+    if (!event) throw new HttpError(404, "Event not found");
+    return enrichAvailability(event);
+  });
 }
 
 function assertEventOwner(event: { organizerId: string }, actor: AuthUser) {
@@ -62,12 +64,15 @@ export async function getEventStats(id: string, actor: AuthUser) {
 export async function updateEvent(id: string, patch: Partial<EventCreateInput>, actor: AuthUser) {
   const event = await getEvent(id);
   assertEventOwner(event, actor);
-  return eventsRepository.update(id, patch);
+  const updated = await eventsRepository.update(id, patch);
+  await eventCache.invalidateEvent(id);
+  return updated;
 }
 
 export async function deleteEvent(id: string, actor: AuthUser) {
   const event = await getEvent(id);
   assertEventOwner(event, actor);
   await eventsRepository.delete(id);
+  await eventCache.invalidateEvent(id);
   return event;
 }

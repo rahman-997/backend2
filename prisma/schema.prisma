@@ -19,6 +19,13 @@ enum BookingStatus {
   WAITLISTED
 }
 
+enum OutboxStatus {
+  PENDING
+  ENQUEUED
+  SENT
+  FAILED
+}
+
 model User {
   id            String         @id @default(uuid(7)) @db.Uuid
   email         String         @unique
@@ -71,4 +78,20 @@ model RefreshToken {
   replaces     RefreshToken? @relation("RefreshRotation")
 
   @@index([userId])
+}
+
+model NotificationOutbox {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  type        String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  availableAt DateTime     @default(now())
+  enqueuedAt  DateTime?
+  sentAt      DateTime?
+  lastError   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, availableAt])
 }
