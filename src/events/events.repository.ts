@@ -31,7 +31,16 @@ export const eventsRepository = {
 
   async list(query: ListEventsQuery) {
     const where = {
-      ...(query.venue !== undefined ? { venue: query.venue } : {}),
+      ...(query.q !== undefined
+        ? {
+            OR: [
+              { title: { contains: query.q, mode: "insensitive" as const } },
+              { description: { contains: query.q, mode: "insensitive" as const } },
+              { venue: { contains: query.q, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(query.venue !== undefined ? { venue: { contains: query.venue, mode: "insensitive" as const } } : {}),
       ...(query.from !== undefined || query.to !== undefined
         ? {
             startsAt: {
