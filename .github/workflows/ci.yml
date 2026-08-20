@@ -53,9 +53,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            web/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install API dependencies
         run: npm install --no-audit --no-fund
