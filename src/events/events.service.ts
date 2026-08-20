@@ -12,8 +12,12 @@ function enrichAvailability<T extends { capacity: number; _count: { bookings: nu
   return { ...rest, confirmedBookings, remainingSeats, soldOut: remainingSeats === 0 };
 }
 
-function assertFutureStart(startsAt: string): void {
-  if (new Date(startsAt).getTime() <= Date.now()) {
+function startTimestamp(startsAt: string | Date): number {
+  return new Date(startsAt).getTime();
+}
+
+function assertFutureStart(startsAt: string | Date): void {
+  if (startTimestamp(startsAt) <= Date.now()) {
     throw new HttpError(409, "Event start time must be in the future");
   }
 }
@@ -72,7 +76,7 @@ export async function updateEvent(id: string, patch: Partial<EventCreateInput>, 
   const event = await getEvent(id);
   assertEventOwner(event, actor);
 
-  if (event.startsAt <= new Date()) throw new HttpError(409, "Started events can no longer be edited");
+  if (startTimestamp(event.startsAt) <= Date.now()) throw new HttpError(409, "Started events can no longer be edited");
   if (patch.startsAt !== undefined) assertFutureStart(patch.startsAt);
   if (patch.capacity !== undefined && patch.capacity < event.confirmedBookings) {
     throw new HttpError(409, `Capacity cannot be lower than ${event.confirmedBookings} confirmed bookings`);
