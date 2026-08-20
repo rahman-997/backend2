@@ -3,12 +3,12 @@ import { z } from "zod";
 const isoDate = z.string().refine((value) => !Number.isNaN(Date.parse(value)), "Invalid date");
 
 export const createEventSchema = z.strictObject({
-  title: z.string().trim().min(1),
-  description: z.string().trim().min(1),
-  venue: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().min(1).max(5_000),
+  venue: z.string().trim().min(1).max(240),
   startsAt: isoDate,
-  capacity: z.number().int().nonnegative(),
-  priceCents: z.number().int().nonnegative(),
+  capacity: z.number().int().positive().max(1_000_000),
+  priceCents: z.number().int().nonnegative().max(100_000_000),
 });
 
 export const updateEventSchema = createEventSchema.partial();
