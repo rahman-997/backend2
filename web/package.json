@@ -1,11 +1,13 @@
 {
   "name": "eventify-web",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "bundle:check": "node scripts/check-bundle.mjs",
+    "verify": "npm run build && npm run bundle:check",
     "start": "node server.mjs"
   },
   "dependencies": {
