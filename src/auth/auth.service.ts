@@ -1,9 +1,9 @@
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
-import type { AuthUser } from "./tokens.js";
-import { authRepository, type SignupRole } from "./auth.repository.js";
-import { hashPassword, verifyPassword } from "./password.js";
-import { createRefreshToken, hashRefreshToken, signAccessToken } from "./tokens.js";
+import { authRepository } from "./auth.repository.js";
+import { clearLoginFailures, assertLoginAllowed, recordLoginFailure } from "./login-throttle.js";
+import { getDummyPasswordHash, hashPassword, needsPasswordRehash, verifyPassword } from "./password.js";
+import { createRefreshToken, hashRefreshToken, signAccessToken, type AuthUser } from "./tokens.js";
 
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -36,14 +36,13 @@ async function issuePair(user: { id: string; role: PublicUser["role"] }) {
   return { accessToken, refreshToken: refresh.raw };
 }
 
-export async function signup(input: { email: string; password: string; name: string; role?: SignupRole }) {
+export async function signup(input: { email: string; password: string; name: string }) {
   try {
     const passwordHash = await hashPassword(input.password);
     const user = await authRepository.createUser({
       email: input.email.toLowerCase(),
       passwordHash,
       name: input.name,
-      role: input.role ?? "ATTENDEE",
     });
     const pair = await issuePair(user);
     return { user: toPublicUser(user), ...pair };
@@ -54,12 +53,44 @@ export async function signup(input: { email: string; password: string; name: str
 }
 
 export async function login(input: { email: string; password: string }) {
-  const user = await authRepository.findUserByEmail(input.email.toLowerCase());
-  const valid = user ? await verifyPassword(input.password, user.passwordHash) : false;
-  if (!user || !valid) throw new HttpError(401, "Invalid email or password");
+  const email = input.email.toLowerCase();
+  await assertLoginAllowed(email);
+
+  const user = await authRepository.findUserByEmail(email);
+  const passwordHash = user?.passwordHash ?? (await getDummyPasswordHash());
+  const valid = await verifyPassword(input.password, passwordHash);
+  if (!user || !valid) {
+    await recordLoginFailure(email);
+    throw new HttpError(401, "Invalid email or password");
+  }
+
+  await clearLoginFailures(email);
+  if (needsPasswordRehash(user.passwordHash)) {
+    await authRepository.updatePasswordHash(user.id, await hashPassword(input.password));
+  }
 
   const pair = await issuePair(user);
   return { user: toPublicUser(user), ...pair };
+}
+
+async function revokeReplacementChain(tx: typeof prisma, replacedById: string | null): Promise<void> {
+  const ids: string[] = [];
+  let nextId = replacedById;
+  for (let depth = 0; nextId && depth < 100; depth += 1) {
+    const token = await tx.refreshToken.findUnique({
+      where: { id: nextId },
+      select: { id: true, replacedById: true },
+    });
+    if (!token) break;
+    ids.push(token.id);
+    nextId = token.replacedById;
+  }
+  if (ids.length > 0) {
+    await tx.refreshToken.updateMany({
+      where: { id: { in: ids }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
 }
 
 export async function refresh(rawToken: string | undefined) {
@@ -74,8 +105,11 @@ export async function refresh(rawToken: string | undefined) {
         where: { tokenHash: oldHash },
         include: { user: true },
       });
-      if (!current || current.revokedAt || current.expiresAt <= new Date()) {
-        throw new HttpError(401, "Invalid refresh token");
+      if (!current || current.expiresAt <= new Date()) return { ok: false as const };
+
+      if (current.revokedAt) {
+        await revokeReplacementChain(tx, current.replacedById);
+        return { ok: false as const };
       }
 
       const replacement = await tx.refreshToken.create({
@@ -91,11 +125,12 @@ export async function refresh(rawToken: string | undefined) {
         data: { revokedAt: new Date(), replacedById: replacement.id },
       });
 
-      return { user: current.user };
+      return { ok: true as const, user: current.user };
     },
     { isolationLevel: "Serializable" },
   );
 
+  if (!result.ok) throw new HttpError(401, "Invalid refresh token");
   return {
     accessToken: await signAccessToken({ sub: result.user.id, role: result.user.role }),
     refreshToken: next.raw,
@@ -111,10 +146,7 @@ export async function getMe(actor: AuthUser) {
 export async function logout(rawToken: string | undefined) {
   if (!rawToken) return;
   await prisma.refreshToken.updateMany({
-    where: {
-      tokenHash: hashRefreshToken(rawToken),
-      revokedAt: null,
-    },
+    where: { tokenHash: hashRefreshToken(rawToken), revokedAt: null },
     data: { revokedAt: new Date() },
   });
 }

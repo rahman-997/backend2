@@ -1,13 +1,20 @@
 import { Router } from "express";
-import { rateLimit } from "express-rate-limit";
+import { config } from "../config.js";
+import { redisRateLimit } from "../middleware/redis-rate-limit.js";
+import { validate } from "../middleware/validate.js";
 import * as controller from "./auth.controller.js";
 import { requireAuth } from "./auth.middleware.js";
 import { emptyBodySchema, loginSchema, signupSchema } from "./auth.schemas.js";
-import { validate } from "../middleware/validate.js";
 
 export const authRouter = Router();
 
-authRouter.use(rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false }));
+authRouter.use(
+  redisRateLimit({
+    prefix: "auth",
+    windowSeconds: config.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    limit: config.AUTH_RATE_LIMIT_MAX,
+  }),
+);
 authRouter.post("/signup", validate(signupSchema), controller.signup);
 authRouter.post("/login", validate(loginSchema), controller.login);
 authRouter.post("/refresh", validate(emptyBodySchema), controller.refresh);
