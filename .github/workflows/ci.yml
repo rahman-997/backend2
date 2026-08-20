@@ -49,6 +49,12 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Seed integration fixtures
+        run: npm run db:seed
+
       - name: Verify API
         run: npm run verify
 
