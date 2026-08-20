@@ -1,8 +1,9 @@
 import fixture from "./fixtures/parallel-users.json" with { type: "json" };
 
 const statuses = new Map<number, number>();
+const bookingStates = new Map<string, number>();
 
-const responses = await Promise.all(
+await Promise.all(
   fixture.users.map(async (user) => {
     const response = await fetch(`${fixture.baseUrl}/v1/bookings`, {
       method: "POST",
@@ -14,11 +15,14 @@ const responses = await Promise.all(
       body: JSON.stringify({ eventId: fixture.eventId }),
     });
     statuses.set(response.status, (statuses.get(response.status) ?? 0) + 1);
-    return response;
+    const body = (await response.json().catch(() => null)) as { status?: string } | null;
+    if (body?.status) bookingStates.set(body.status, (bookingStates.get(body.status) ?? 0) + 1);
   }),
 );
 
-console.log(Object.fromEntries([...statuses.entries()].sort(([a], [b]) => a - b)));
-const created = statuses.get(201) ?? 0;
-if (created > fixture.capacity) process.exitCode = 1;
-void responses;
+console.log({ http: Object.fromEntries(statuses), bookings: Object.fromEntries(bookingStates) });
+const confirmed = bookingStates.get("CONFIRMED") ?? 0;
+if (confirmed > fixture.capacity) {
+  console.error(`Oversold: ${confirmed} confirmed for capacity ${fixture.capacity}`);
+  process.exitCode = 1;
+}

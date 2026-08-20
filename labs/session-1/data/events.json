@@ -1,0 +1,5 @@
+[
+  {"id":"00000000-0000-4000-8000-000000000901","title":"Raw HTTP Night","description":"Session 1 seed","venue":"Lab A","startsAt":"2099-01-01T18:00:00.000Z","capacity":30,"priceCents":0,"organizerId":"00000000-0000-4000-8000-000000000001","createdAt":"2026-08-20T00:00:00.000Z"},
+  {"id":"00000000-0000-4000-8000-000000000902","title":"Event Loop Lab","description":"Session 1 seed","venue":"Lab B","startsAt":"2099-01-02T18:00:00.000Z","capacity":25,"priceCents":1000,"organizerId":"00000000-0000-4000-8000-000000000001","createdAt":"2026-08-20T00:00:00.000Z"},
+  {"id":"00000000-0000-4000-8000-000000000903","title":"Async Await Workshop","description":"Session 1 seed","venue":"Lab C","startsAt":"2099-01-03T18:00:00.000Z","capacity":40,"priceCents":0,"organizerId":"00000000-0000-4000-8000-000000000001","createdAt":"2026-08-20T00:00:00.000Z"}
+]

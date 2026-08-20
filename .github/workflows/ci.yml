@@ -9,17 +9,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18
         env:
           POSTGRES_DB: eventify
           POSTGRES_USER: eventify
@@ -31,17 +27,30 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     env:
+      NODE_ENV: test
       DATABASE_URL: postgresql://eventify:eventify@localhost:5432/eventify
+      REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-only-eventify-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       WEB_ORIGIN: http://localhost:5173
+      AUTH_RATE_LIMIT_MAX: 10000
+      EMAIL_MODE: log
 
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install API dependencies
         run: npm install --no-audit --no-fund
@@ -55,8 +64,30 @@ jobs:
       - name: Seed integration fixtures
         run: npm run db:seed
 
-      - name: Verify API
+      - name: Verify API, architecture and tests
         run: npm run verify
+
+      - name: BullMQ worker smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT=3010 npm run worker > /tmp/eventify-worker.log 2>&1 &
+          worker_pid=$!
+          cleanup() { kill "$worker_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3010/health > /tmp/worker-health.json; then
+              cat /tmp/worker-health.json
+              exit 0
+            fi
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+              cat /tmp/eventify-worker.log
+              exit 1
+            fi
+            sleep 1
+          done
+          cat /tmp/eventify-worker.log
+          exit 1
 
       - name: Install frontend dependencies
         working-directory: web
