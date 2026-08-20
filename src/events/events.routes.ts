@@ -7,6 +7,8 @@ import { validate, validateQuery } from "../middleware/validate.js";
 export const eventsRouter = Router();
 
 eventsRouter.get("/", validateQuery(listEventsQuerySchema), controller.listEvents);
+eventsRouter.get("/mine", requireAuth, requireRole("ORGANIZER", "ADMIN"), controller.listMyEvents);
+eventsRouter.get("/:id/stats", requireAuth, requireRole("ORGANIZER", "ADMIN"), controller.getEventStats);
 eventsRouter.get("/:id", controller.getEvent);
 eventsRouter.post("/", requireAuth, requireRole("ORGANIZER", "ADMIN"), validate(createEventSchema), controller.createEvent);
 eventsRouter.patch("/:id", requireAuth, requireRole("ORGANIZER", "ADMIN"), validate(updateEventSchema), controller.updateEvent);
