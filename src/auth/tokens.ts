@@ -4,7 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 
 const accessPayloadSchema = z.strictObject({
-  sub: z.uuid(),
+  sub: z.string().min(1).max(128),
   role: z.enum(["ATTENDEE", "ORGANIZER", "ADMIN"]),
 });
 
