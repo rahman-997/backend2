@@ -1,0 +1,18 @@
+// Session 4 starter model block.
+// Paste this model into prisma/schema.prisma and add
+// `refreshTokens RefreshToken[]` to User.
+model RefreshToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tokenHash    String    @unique
+  userId       String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @unique @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy   RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
+  replaces     RefreshToken? @relation("RefreshTokenRotation")
+
+  @@index([userId])
+}
