@@ -16,10 +16,10 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18
         env:
           POSTGRES_DB: eventify
           POSTGRES_USER: eventify
@@ -31,17 +31,30 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     env:
+      NODE_ENV: test
       DATABASE_URL: postgresql://eventify:eventify@localhost:5432/eventify
+      REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-only-eventify-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       WEB_ORIGIN: http://localhost:5173
+      AUTH_RATE_LIMIT_MAX: 10000
+      EMAIL_MODE: log
 
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install API dependencies
         run: npm install --no-audit --no-fund
@@ -55,7 +68,7 @@ jobs:
       - name: Seed integration fixtures
         run: npm run db:seed
 
-      - name: Verify API
+      - name: Verify API, architecture and tests
         run: npm run verify
 
       - name: Install frontend dependencies
