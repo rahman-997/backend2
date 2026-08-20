@@ -1,4 +1,3 @@
-import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
 import { authRepository } from "./auth.repository.js";
@@ -17,6 +16,10 @@ export type PublicUser = {
 
 function toPublicUser(user: { id: string; email: string; name: string; role: PublicUser["role"]; createdAt: Date }): PublicUser {
   return { id: user.id, email: user.email, name: user.name, role: user.role, createdAt: user.createdAt };
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "P2002";
 }
 
 async function issuePair(user: { id: string; role: PublicUser["role"] }) {
@@ -39,9 +42,7 @@ export async function signup(input: { email: string; password: string; name: str
     const pair = await issuePair(user);
     return { user: toPublicUser(user), ...pair };
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new HttpError(409, "Account already exists");
-    }
+    if (isUniqueViolation(error)) throw new HttpError(409, "Account already exists");
     throw error;
   }
 }
@@ -60,41 +61,37 @@ export async function refresh(rawToken: string | undefined) {
   const oldHash = hashRefreshToken(rawToken);
   const next = createRefreshToken();
 
-  try {
-    const result = await prisma.$transaction(
-      async (tx) => {
-        const current = await tx.refreshToken.findUnique({
-          where: { tokenHash: oldHash },
-          include: { user: true },
-        });
-        if (!current || current.revokedAt || current.expiresAt <= new Date()) {
-          throw new HttpError(401, "Invalid refresh token");
-        }
+  const result = await prisma.$transaction(
+    async (transactionClient) => {
+      const tx = transactionClient as unknown as typeof prisma;
+      const current = await tx.refreshToken.findUnique({
+        where: { tokenHash: oldHash },
+        include: { user: true },
+      });
+      if (!current || current.revokedAt || current.expiresAt <= new Date()) {
+        throw new HttpError(401, "Invalid refresh token");
+      }
 
-        const replacement = await tx.refreshToken.create({
-          data: {
-            tokenHash: next.hash,
-            userId: current.userId,
-            expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
-          },
-        });
+      const replacement = await tx.refreshToken.create({
+        data: {
+          tokenHash: next.hash,
+          userId: current.userId,
+          expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+        },
+      });
 
-        await tx.refreshToken.update({
-          where: { id: current.id },
-          data: { revokedAt: new Date(), replacedById: replacement.id },
-        });
+      await tx.refreshToken.update({
+        where: { id: current.id },
+        data: { revokedAt: new Date(), replacedById: replacement.id },
+      });
 
-        return { user: current.user };
-      },
-      { isolationLevel: "Serializable" },
-    );
+      return { user: current.user };
+    },
+    { isolationLevel: "Serializable" },
+  );
 
-    return {
-      accessToken: await signAccessToken({ sub: result.user.id, role: result.user.role }),
-      refreshToken: next.raw,
-    };
-  } catch (error) {
-    if (error instanceof HttpError) throw error;
-    throw error;
-  }
+  return {
+    accessToken: await signAccessToken({ sub: result.user.id, role: result.user.role }),
+    refreshToken: next.raw,
+  };
 }
