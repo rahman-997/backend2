@@ -10,6 +10,10 @@ export const createBooking: RequestHandler = async (req, res) => {
   res.status(201).json(await bookingsService.createBooking(res.locals.user as AuthUser, req.body.eventId));
 };
 
+export const listMyBookings: RequestHandler = async (_req, res) => {
+  res.json(await bookingsService.listMyBookings(res.locals.user as AuthUser));
+};
+
 export const getBooking: RequestHandler = async (req, res) => {
   res.json(await bookingsService.getBooking(routeId(req.params.id), res.locals.user as AuthUser));
 };
