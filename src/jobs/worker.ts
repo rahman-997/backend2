@@ -9,7 +9,7 @@ import { withSerializationRetry } from "../db/serialization.js";
 import { logger } from "../observability/logger.js";
 import { closeRedis, createQueueRedis, createWorkerRedis, writeWorkerHeartbeat } from "../redis/client.js";
 import { sendBookingConfirmation } from "./email.js";
-import { dispatchOutbox, markOutboxFailed, markOutboxSent } from "./outbox.js";
+import { dispatchOutbox, markOutboxFailed, markOutboxSent, purgeDeliveredOutbox } from "./outbox.js";
 
 const QUEUE_NAME = "eventify-background";
 const producerConnection = createQueueRedis();
@@ -121,12 +121,23 @@ async function heartbeat() {
   }
 }
 
-await Promise.all([tick(), heartbeat()]);
+async function maintenance() {
+  try {
+    const purged = await purgeDeliveredOutbox();
+    if (purged > 0) logger.info("outbox.retention_purged", { component: "worker", purged });
+  } catch (error) {
+    logger.warn("outbox.retention_failed", { component: "worker", error });
+  }
+}
+
+await Promise.all([tick(), heartbeat(), maintenance()]);
 const pollTimer = setInterval(() => void tick(), config.OUTBOX_POLL_MS);
 pollTimer.unref();
 const heartbeatEveryMs = Math.max(5_000, Math.floor((config.WORKER_HEARTBEAT_TTL_SECONDS * 1_000) / 3));
 const heartbeatTimer = setInterval(() => void heartbeat(), heartbeatEveryMs);
 heartbeatTimer.unref();
+const maintenanceTimer = setInterval(() => void maintenance(), 60 * 60 * 1_000);
+maintenanceTimer.unref();
 
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "0.0.0.0";
@@ -173,6 +184,7 @@ async function shutdown(signal: string) {
   logger.info("worker.shutdown_started", { component: "worker", signal });
   clearInterval(pollTimer);
   clearInterval(heartbeatTimer);
+  clearInterval(maintenanceTimer);
   healthServer.close();
 
   const timeout = setTimeout(() => {
