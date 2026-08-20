@@ -8,11 +8,11 @@ const prisma = new PrismaClient({ adapter });
 const PASSWORD = "Password123!";
 
 const ids = {
-  organizer1: "00000000-0000-0000-0000-000000000001",
-  attendee: "00000000-0000-0000-0000-000000000002",
-  admin: "00000000-0000-0000-0000-000000000003",
-  organizer2: "00000000-0000-0000-0000-000000000004",
-  parallelEvent: "00000000-0000-0000-0000-000000000100",
+  organizer1: "00000000-0000-4000-8000-000000000001",
+  attendee: "00000000-0000-4000-8000-000000000002",
+  admin: "00000000-0000-4000-8000-000000000003",
+  organizer2: "00000000-0000-4000-8000-000000000004",
+  parallelEvent: "00000000-0000-4000-8000-000000000100",
 };
 
 async function upsertUser(id: string, email: string, name: string, role: "ATTENDEE" | "ORGANIZER" | "ADMIN") {
@@ -32,15 +32,15 @@ async function main() {
 
   for (let i = 1; i <= 20; i += 1) {
     const suffix = i.toString().padStart(12, "0");
-    await upsertUser(`00000000-0000-0000-0001-${suffix}`, `parallel${i}@eventify.test`, `Parallel User ${i}`, "ATTENDEE");
+    await upsertUser(`00000000-0000-4001-8000-${suffix}`, `parallel${i}@eventify.test`, `Parallel User ${i}`, "ATTENDEE");
   }
 
   const events = [
     { id: ids.parallelEvent, title: "Parallel Capacity Five", capacity: 5, organizerId: ids.organizer1 },
-    { id: "00000000-0000-0000-0000-000000000101", title: "TypeScript Days", capacity: 50, organizerId: ids.organizer1 },
-    { id: "00000000-0000-0000-0000-000000000102", title: "Postgres Party", capacity: 100, organizerId: ids.organizer2 },
-    { id: "00000000-0000-0000-0000-000000000103", title: "API World", capacity: 75, organizerId: ids.organizer1 },
-    { id: "00000000-0000-0000-0000-000000000104", title: "Testing Guild", capacity: 20, organizerId: ids.organizer2 },
+    { id: "00000000-0000-4000-8000-000000000101", title: "TypeScript Days", capacity: 50, organizerId: ids.organizer1 },
+    { id: "00000000-0000-4000-8000-000000000102", title: "Postgres Party", capacity: 100, organizerId: ids.organizer2 },
+    { id: "00000000-0000-4000-8000-000000000103", title: "API World", capacity: 75, organizerId: ids.organizer1 },
+    { id: "00000000-0000-4000-8000-000000000104", title: "Testing Guild", capacity: 20, organizerId: ids.organizer2 },
   ];
 
   for (const [index, event] of events.entries()) {

@@ -1,14 +1,18 @@
 import { z } from "zod";
-import { Prisma } from "../generated/prisma/client.js";
 import type { AuthUser } from "../auth/tokens.js";
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
 import { bookingsRepository } from "./bookings.repository.js";
 
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "P2002";
+}
+
 export async function createBooking(actor: AuthUser, eventId: string) {
   try {
     return await prisma.$transaction(
-      async (tx) => {
+      async (transactionClient) => {
+        const tx = transactionClient as unknown as typeof prisma;
         const event = await tx.event.findUnique({ where: { id: eventId } });
         if (!event) throw new HttpError(404, "Event not found");
 
@@ -30,9 +34,7 @@ export async function createBooking(actor: AuthUser, eventId: string) {
     );
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new HttpError(409, "Booking already exists for this user and event");
-    }
+    if (isUniqueViolation(error)) throw new HttpError(409, "Booking already exists for this user and event");
     throw error;
   }
 }

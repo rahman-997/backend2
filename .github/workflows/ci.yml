@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: eventify
+          POSTGRES_USER: eventify
+          POSTGRES_PASSWORD: eventify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eventify -d eventify"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://eventify:eventify@localhost:5432/eventify
+      JWT_ACCESS_SECRET: ci-only-eventify-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      WEB_ORIGIN: http://localhost:5173
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install API dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Seed integration fixtures
+        run: npm run db:seed
+
+      - name: Verify API
+        run: npm run verify
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm install --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Frontend dependency audit
+        working-directory: web
+        run: npm audit --audit-level=high
