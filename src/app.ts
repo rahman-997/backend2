@@ -1,26 +1,12 @@
-import cors from "cors";
 import express from "express";
-import helmet from "helmet";
-import routes from "./routes/index.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import { requestId } from "./middleware/requestId.js";
-import { requestLogger } from "./middleware/requestLogger.js";
-import { notFound } from "./middleware/notFound.js";
-import { rateLimit } from "./middleware/rateLimit.js";
-import { env } from "./config/env.js";
+import { bookingsRouter } from "./bookings/bookings.routes.js";
+import { eventsRouter } from "./events/events.routes.js";
+import { errorHandler } from "./middleware/error-handler.js";
 
-const app = express();
+export const app = express();
 
-app.disable("x-powered-by");
-app.set("trust proxy", 1);
-app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN }));
-app.use(requestId);
-app.use(requestLogger);
-app.use(rateLimit);
-app.use(express.json({ limit: "1mb" }));
-app.use(routes);
-app.use(notFound);
+app.use(express.json());
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.use("/v1/events", eventsRouter);
+app.use("/v1/bookings", bookingsRouter);
 app.use(errorHandler);
-
-export default app;
