@@ -15,8 +15,16 @@ export const listEvents: RequestHandler = async (_req, res) => {
   res.json(await eventsService.listEvents(res.locals.query as ListEventsQuery));
 };
 
+export const listMyEvents: RequestHandler = async (_req, res) => {
+  res.json(await eventsService.listMyEvents(res.locals.user as AuthUser));
+};
+
 export const getEvent: RequestHandler = async (req, res) => {
   res.json(await eventsService.getEvent(routeId(req.params.id)));
+};
+
+export const getEventStats: RequestHandler = async (req, res) => {
+  res.json(await eventsService.getEventStats(routeId(req.params.id), res.locals.user as AuthUser));
 };
 
 export const updateEvent: RequestHandler = async (req, res) => {
