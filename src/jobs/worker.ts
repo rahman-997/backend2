@@ -98,7 +98,7 @@ worker.on("completed", (job) => {
   if (job.id) void markOutboxSent(job.id).catch((error) => console.error("[outbox] mark sent failed", error));
 });
 worker.on("failed", (job, error) => {
-  console.error(`[worker] job ${job?.id ?? "unknown"} failed`, error.message);
+  console.error("[worker] job failed", { jobId: job?.id ?? "unknown", message: error.message });
   const attempts = job?.opts.attempts ?? 1;
   if (job?.id && job.attemptsMade >= attempts) {
     void markOutboxFailed(job.id, error).catch((markError) => console.error("[outbox] mark failed failed", markError));
