@@ -1,6 +1,6 @@
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
-import { authRepository } from "./auth.repository.js";
+import { authRepository, type SignupRole } from "./auth.repository.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { createRefreshToken, hashRefreshToken, signAccessToken } from "./tokens.js";
 
@@ -35,10 +35,15 @@ async function issuePair(user: { id: string; role: PublicUser["role"] }) {
   return { accessToken, refreshToken: refresh.raw };
 }
 
-export async function signup(input: { email: string; password: string; name: string }) {
+export async function signup(input: { email: string; password: string; name: string; role?: SignupRole }) {
   try {
     const passwordHash = await hashPassword(input.password);
-    const user = await authRepository.createUser({ email: input.email.toLowerCase(), passwordHash, name: input.name });
+    const user = await authRepository.createUser({
+      email: input.email.toLowerCase(),
+      passwordHash,
+      name: input.name,
+      role: input.role ?? "ATTENDEE",
+    });
     const pair = await issuePair(user);
     return { user: toPublicUser(user), ...pair };
   } catch (error) {
