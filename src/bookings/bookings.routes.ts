@@ -7,5 +7,6 @@ import { validate } from "../middleware/validate.js";
 export const bookingsRouter = Router();
 
 bookingsRouter.post("/", requireAuth, validate(createBookingSchema), controller.createBooking);
+bookingsRouter.get("/mine", requireAuth, controller.listMyBookings);
 bookingsRouter.get("/:id", requireAuth, controller.getBooking);
 bookingsRouter.delete("/:id", requireAuth, controller.cancelBooking);
