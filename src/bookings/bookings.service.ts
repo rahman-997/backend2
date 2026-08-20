@@ -15,6 +15,7 @@ export async function createBooking(actor: AuthUser, eventId: string) {
         const tx = transactionClient as unknown as typeof prisma;
         const event = await tx.event.findUnique({ where: { id: eventId } });
         if (!event) throw new HttpError(404, "Event not found");
+        if (event.startsAt <= new Date()) throw new HttpError(409, "Event has already started");
 
         const confirmed = await tx.booking.count({ where: { eventId, status: "CONFIRMED" } });
         if (confirmed >= event.capacity) throw new HttpError(409, "Event is at capacity");
@@ -27,6 +28,7 @@ export async function createBooking(actor: AuthUser, eventId: string) {
           return tx.booking.update({ where: { id: existing.id }, data: { status: "CONFIRMED" } });
         }
         if (existing?.status === "WAITLISTED") return existing;
+        if (existing?.status === "CONFIRMED") throw new HttpError(409, "You already booked this event");
 
         return tx.booking.create({ data: { userId: actor.sub, eventId, status: "CONFIRMED" } });
       },
@@ -37,6 +39,10 @@ export async function createBooking(actor: AuthUser, eventId: string) {
     if (isUniqueViolation(error)) throw new HttpError(409, "Booking already exists for this user and event");
     throw error;
   }
+}
+
+export function listMyBookings(actor: AuthUser) {
+  return bookingsRepository.findByUserWithEvent(actor.sub);
 }
 
 export async function getBooking(id: string, actor: AuthUser) {
@@ -51,6 +57,7 @@ export async function cancelBooking(id: string, actor: AuthUser) {
   if (!z.uuid().safeParse(id).success) throw new HttpError(404, "Booking not found");
   const booking = await bookingsRepository.findById(id);
   if (!booking) throw new HttpError(404, "Booking not found");
-  if (booking.userId !== actor.sub) throw new HttpError(403, "Forbidden");
+  if (booking.userId !== actor.sub && actor.role !== "ADMIN") throw new HttpError(403, "Forbidden");
+  if (booking.status === "CANCELLED") return booking;
   return bookingsRepository.cancel(id);
 }
