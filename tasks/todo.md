@@ -1,9 +1,9 @@
-# Session 3 plan
+# Session 4 plan
 
-- [x] Replace all in-memory Event storage with Prisma repositories.
-- [x] Replace all in-memory Booking storage with Prisma repositories.
-- [x] Make booking creation Serializable and transactional.
-- [x] Support cancel-then-rebook by flipping the existing row back to CONFIRMED.
-- [x] Map Prisma P2002 duplicate failures to HTTP 409.
-- [x] Add an idempotent seed with 20 parallel-booking users and a capacity-5 event.
-- [x] Add the bookings-by-user index migration and EXPLAIN command notes.
+- [ ] Add JWT access-token authentication with HS256 pinned on sign and verify.
+- [ ] Add signup, login, and refresh routes with generic login/refresh failures.
+- [ ] Add opaque refresh-token hashing and atomic rotation in PostgreSQL.
+- [ ] Protect Event and Booking routes per the Session 4 policy matrix.
+- [ ] Add event and booking ownership checks with ADMIN event bypass.
+- [ ] Add a second seeded organizer and ownership proof test.
+- [ ] Keep secrets in the config env schema and response DTOs allowlisted.
