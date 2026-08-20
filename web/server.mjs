@@ -17,7 +17,7 @@ app.use(
     changeOrigin: true,
     secure: true,
     pathRewrite: { "^/api": "" },
-    cookiePathRewrite: { "/v1/auth/refresh": "/api/v1/auth/refresh" },
+    cookiePathRewrite: { "/v1/auth": "/api/v1/auth" },
   }),
 );
 
