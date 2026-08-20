@@ -2,29 +2,14 @@ import { z } from "zod";
 import type { AuthUser } from "../auth/tokens.js";
 import { eventCache } from "../cache/event-cache.js";
 import { prisma } from "../db/prisma.js";
+import { withSerializationRetry } from "../db/serialization.js";
 import { HttpError } from "../errors/http-error.js";
 import { bookingsRepository } from "./bookings.repository.js";
-
-const MAX_SERIALIZATION_ATTEMPTS = 3;
 
 function prismaCode(error: unknown): string | undefined {
   return typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "")
     : undefined;
-}
-
-async function withSerializationRetry<T>(work: () => Promise<T>): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_SERIALIZATION_ATTEMPTS; attempt += 1) {
-    try {
-      return await work();
-    } catch (error) {
-      lastError = error;
-      if (prismaCode(error) !== "P2034" || attempt === MAX_SERIALIZATION_ATTEMPTS) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));
-    }
-  }
-  throw lastError;
 }
 
 async function createConfirmationOutbox(tx: typeof prisma, bookingId: string): Promise<void> {
