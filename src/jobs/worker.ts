@@ -4,6 +4,7 @@ import { z } from "zod";
 import { eventCache } from "../cache/event-cache.js";
 import { config } from "../config.js";
 import { prisma } from "../db/prisma.js";
+import { withSerializationRetry } from "../db/serialization.js";
 import { closeRedis, createQueueRedis, createWorkerRedis } from "../redis/client.js";
 import { sendBookingConfirmation } from "./email.js";
 import { dispatchOutbox, markOutboxFailed, markOutboxSent } from "./outbox.js";
@@ -15,26 +16,6 @@ const queue = new Queue(QUEUE_NAME, { connection: producerConnection });
 
 const bookingConfirmationSchema = z.strictObject({ bookingId: z.uuid() });
 const waitlistPromotionSchema = z.strictObject({ eventId: z.uuid() });
-
-function prismaCode(error: unknown): string | undefined {
-  return typeof error === "object" && error !== null && "code" in error
-    ? String((error as { code?: unknown }).code ?? "")
-    : undefined;
-}
-
-async function serializable<T>(work: () => Promise<T>): Promise<T> {
-  let last: unknown;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      return await work();
-    } catch (error) {
-      last = error;
-      if (prismaCode(error) !== "P2034" || attempt === 3) throw error;
-      await new Promise((resolve) => setTimeout(resolve, attempt * 25));
-    }
-  }
-  throw last;
-}
 
 async function confirmBooking(job: Job): Promise<void> {
   const { bookingId } = bookingConfirmationSchema.parse(job.data);
@@ -55,7 +36,7 @@ async function confirmBooking(job: Job): Promise<void> {
 
 async function promoteWaitlist(job: Job): Promise<void> {
   const { eventId } = waitlistPromotionSchema.parse(job.data);
-  const promoted = await serializable(() =>
+  const promoted = await withSerializationRetry(() =>
     prisma.$transaction(
       async (transactionClient) => {
         const tx = transactionClient as unknown as typeof prisma;
