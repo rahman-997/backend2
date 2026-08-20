@@ -1,0 +1,65 @@
+import { prisma } from "../db/prisma.js";
+import type { ListEventsQuery } from "./events.schemas.js";
+
+export type EventCreateInput = {
+  title: string;
+  description: string;
+  venue: string;
+  startsAt: string;
+  capacity: number;
+  priceCents: number;
+};
+
+export const eventsRepository = {
+  create(input: EventCreateInput, organizerId: string) {
+    return prisma.event.create({
+      data: {
+        ...input,
+        startsAt: new Date(input.startsAt),
+        organizerId,
+      },
+    });
+  },
+
+  async list(query: ListEventsQuery) {
+    const where = {
+      ...(query.venue !== undefined ? { venue: query.venue } : {}),
+      ...(query.from !== undefined || query.to !== undefined
+        ? {
+            startsAt: {
+              ...(query.from !== undefined ? { gte: new Date(query.from) } : {}),
+              ...(query.to !== undefined ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+    const [data, total] = await prisma.$transaction([
+      prisma.event.findMany({
+        where,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        orderBy: { startsAt: "asc" },
+      }),
+      prisma.event.count({ where }),
+    ]);
+    return { data, total };
+  },
+
+  findById(id: string) {
+    return prisma.event.findUnique({ where: { id } });
+  },
+
+  update(id: string, patch: Partial<EventCreateInput>) {
+    return prisma.event.update({
+      where: { id },
+      data: {
+        ...patch,
+        ...(patch.startsAt !== undefined ? { startsAt: new Date(patch.startsAt) } : {}),
+      },
+    });
+  },
+
+  delete(id: string) {
+    return prisma.event.delete({ where: { id } });
+  },
+};

@@ -1,0 +1,69 @@
+# =============================================================================
+# Eventify — local infrastructure. MAGIC FOR NOW.
+# Every line of this file is fully explained in Session 6. Until then, treat it
+# as a black box that gives you a real PostgreSQL (and later Redis) locally.
+#
+# Usage (from the folder containing this file):
+#   docker compose -f session-3-docker-compose.yml up -d      # start everything
+#   docker compose -f session-3-docker-compose.yml ps         # is it healthy?
+#   docker compose -f session-3-docker-compose.yml down       # stop (data kept)
+#   docker compose -f session-3-docker-compose.yml down -v    # stop AND wipe data
+#                                                             #   (re-runs the seed on next up)
+# In your eventify repo, save it as plain `docker-compose.yml` and drop the -f.
+#
+# psql into the pre-seeded SQL sandbox (today's raw-SQL block):
+#   docker compose exec postgres psql -U eventify -d sandbox
+# psql into the app database (Prisma migrates into this one):
+#   docker compose exec postgres psql -U eventify -d eventify
+#
+# App connection string for .env:
+#   DATABASE_URL=postgresql://eventify:eventify@localhost:5432/eventify
+#
+# NOTE: keep session-3-sandbox-seed.sql next to this file — it is mounted below
+# and runs automatically the FIRST time the postgres volume is created.
+# =============================================================================
+
+name: eventify
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: eventify
+      POSTGRES_PASSWORD: eventify
+      POSTGRES_DB: eventify
+    ports:
+      - "5432:5432" # host:container — your app connects to localhost:5432
+    volumes:
+      # Named volume so your data survives `docker compose down` and restarts.
+      # postgres:18 keeps its data under /var/lib/postgresql — older tutorials
+      # (and AI snippets) mount /var/lib/postgresql/data, which on 18 silently
+      # stops persisting anything. Session 6 explains why.
+      - pgdata:/var/lib/postgresql
+      # Seed script: creates the `sandbox` database (snake_case tables,
+      # ~2k users / ~200 events / ~10k bookings) on first boot only.
+      - ./session-3-sandbox-seed.sql:/docker-entrypoint-initdb.d/10-sandbox-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventify -d eventify"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # IGNORE UNTIL SESSION 5. Redis arrives with caching, rate limiting and
+  # background jobs. It costs nothing to have it running in the meantime.
+  # From Session 5 on: docker compose exec redis redis-cli
+  # No volume on purpose: dev cache/queue data is disposable.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8
+    ports:
+      - "6379:6379" # REDIS_URL=redis://localhost:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
