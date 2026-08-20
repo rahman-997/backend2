@@ -23,7 +23,8 @@ export const listEventsQuerySchema = z
   .strictObject({
     page: intParam(1, Number.MAX_SAFE_INTEGER).default(1),
     limit: intParam(1, 100).default(20),
-    venue: z.string().optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+    venue: z.string().trim().min(1).max(200).optional(),
     from: isoDate.optional(),
     to: isoDate.optional(),
   })
