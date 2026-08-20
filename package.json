@@ -1,54 +1,21 @@
 {
-  "name": "backend2",
-  "version": "2.0.0",
+  "name": "eventify",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/db/migrate.js && node dist/server.js",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "node scripts/e2e-smoke.mjs",
-    "db:migrate": "tsx src/db/migrate.ts",
-    "db:contract": "node scripts/db-contract.mjs",
-    "db:contract:mysql": "node scripts/db-contract-mysql.mjs",
-    "db:backup": "node scripts/backup-postgres.mjs",
-    "db:restore": "node scripts/restore-postgres.mjs",
-    "db:backup:mysql": "node scripts/backup-mysql.mjs",
-    "db:restore:mysql": "node scripts/restore-mysql.mjs",
-    "db:prisma:generate": "prisma generate",
-    "db:prisma:validate": "prisma validate",
-    "db:drizzle:check": "drizzle-kit check",
-    "db:typeorm:validate": "tsx scripts/typeorm-validate.ts",
-    "db:orm:smoke": "tsx scripts/orm-smoke.ts",
-    "verify": "npm run typecheck && npm run build && npm test"
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^5.1.0",
-    "helmet": "^8.1.0",
-    "jose": "^6.2.8",
-    "mysql2": "^3.14.3",
-    "pg": "^8.16.0",
-    "zod": "^4.0.0"
+    "zod": "^4.1.5"
   },
   "devDependencies": {
-    "@prisma/client": "6.12.0",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^24.0.0",
-    "@types/pg": "^8.15.0",
-    "@types/supertest": "^6.0.3",
-    "drizzle-kit": "^0.31.4",
-    "drizzle-orm": "0.45.2",
-    "prisma": "6.12.0",
-    "reflect-metadata": "^0.2.2",
-    "supertest": "^7.1.4",
-    "tsx": "^4.19.0",
-    "typeorm": "^0.3.26",
-    "typescript": "^5.9.0",
-    "vitest": "^3.2.4"
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
   }
 }
