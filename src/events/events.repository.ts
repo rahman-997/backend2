@@ -10,6 +10,14 @@ export type EventCreateInput = {
   priceCents: number;
 };
 
+const confirmedBookingCount = {
+  select: {
+    bookings: {
+      where: { status: "CONFIRMED" as const },
+    },
+  },
+};
+
 export const eventsRepository = {
   create(input: EventCreateInput, organizerId: string) {
     return prisma.event.create({
@@ -39,6 +47,7 @@ export const eventsRepository = {
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: { startsAt: "asc" },
+        include: { _count: confirmedBookingCount },
       }),
       prisma.event.count({ where }),
     ]);
@@ -46,7 +55,26 @@ export const eventsRepository = {
   },
 
   findById(id: string) {
-    return prisma.event.findUnique({ where: { id } });
+    return prisma.event.findUnique({
+      where: { id },
+      include: { _count: confirmedBookingCount },
+    });
+  },
+
+  findByOrganizer(organizerId: string) {
+    return prisma.event.findMany({
+      where: { organizerId },
+      orderBy: { startsAt: "desc" },
+      include: { _count: confirmedBookingCount },
+    });
+  },
+
+  bookingStats(eventId: string) {
+    return prisma.booking.groupBy({
+      by: ["status"],
+      where: { eventId },
+      _count: { _all: true },
+    });
   },
 
   update(id: string, patch: Partial<EventCreateInput>) {
