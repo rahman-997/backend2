@@ -16,7 +16,7 @@ beforeAll(async () => {
 
 describe("event ownership", () => {
   it("returns 403 when one organizer edits another organizer's event", async () => {
-    const eventId = "00000000-0000-0000-0000-000000000102";
+    const eventId = "00000000-0000-4000-8000-000000000102";
     const response = await request(app)
       .patch(`/v1/events/${eventId}`)
       .set("authorization", `Bearer ${organizer1Token}`)
@@ -26,7 +26,7 @@ describe("event ownership", () => {
   });
 
   it("allows the owning organizer", async () => {
-    const eventId = "00000000-0000-0000-0000-000000000102";
+    const eventId = "00000000-0000-4000-8000-000000000102";
     const response = await request(app)
       .patch(`/v1/events/${eventId}`)
       .set("authorization", `Bearer ${organizer2Token}`)
