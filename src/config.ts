@@ -29,6 +29,7 @@ const envSchema = z
     SMTP_URL: z.string().optional(),
     EMAIL_FROM: z.string().min(3).default("Eventify <no-reply@eventify.local>"),
     OUTBOX_POLL_MS: z.coerce.number().int().min(500).max(60_000).default(2000),
+    OUTBOX_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
     WORKER_HEARTBEAT_TTL_SECONDS: z.coerce.number().int().min(10).max(300).default(45),
   })
   .refine(({ EMAIL_MODE, SMTP_URL }) => EMAIL_MODE !== "smtp" || Boolean(SMTP_URL), {
@@ -61,6 +62,7 @@ const parsed = envSchema.parse({
   SMTP_URL: process.env.SMTP_URL,
   EMAIL_FROM: process.env.EMAIL_FROM,
   OUTBOX_POLL_MS: process.env.OUTBOX_POLL_MS,
+  OUTBOX_RETENTION_DAYS: process.env.OUTBOX_RETENTION_DAYS,
   WORKER_HEARTBEAT_TTL_SECONDS: process.env.WORKER_HEARTBEAT_TTL_SECONDS,
 });
 
