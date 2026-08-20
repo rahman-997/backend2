@@ -1,17 +1,28 @@
 import type { ErrorRequestHandler } from "express";
 import { HttpError } from "../errors/http-error.js";
+import { logger } from "../observability/logger.js";
+import { getRequestId } from "../observability/request-context.js";
 
-export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+  const requestId = getRequestId() ?? String(res.getHeader("x-request-id") ?? "");
+
   if (error instanceof HttpError) {
-    res.status(error.status).json({ error: error.message, details: error.details });
+    if (error.status >= 500) {
+      logger.error("http.error", { method: req.method, route: req.originalUrl, status: error.status, error });
+    }
+    res.status(error.status).json({ error: error.message, details: error.details, requestId });
     return;
   }
 
   if (error instanceof SyntaxError && "status" in error && error.status === 400) {
-    res.status(400).json({ error: "Invalid JSON" });
+    res.status(400).json({ error: "Invalid JSON", requestId });
     return;
   }
 
-  console.error(error);
-  res.status(500).json({ error: "Internal server error" });
+  logger.error("http.unhandled_error", {
+    method: req.method,
+    route: req.originalUrl,
+    error,
+  });
+  res.status(500).json({ error: "Internal server error", requestId });
 };
