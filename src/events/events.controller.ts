@@ -1,11 +1,10 @@
 import type { RequestHandler } from "express";
+import type { AuthUser } from "../auth/tokens.js";
 import * as eventsService from "./events.service.js";
 import type { ListEventsQuery } from "./events.schemas.js";
 
-const CURRENT_ORGANIZER_ID = "00000000-0000-0000-0000-000000000001";
-
 export const createEvent: RequestHandler = async (req, res) => {
-  res.status(201).json(await eventsService.createEvent(req.body, CURRENT_ORGANIZER_ID));
+  res.status(201).json(await eventsService.createEvent(req.body, res.locals.user as AuthUser));
 };
 
 export const listEvents: RequestHandler = async (_req, res) => {
@@ -17,9 +16,9 @@ export const getEvent: RequestHandler = async (req, res) => {
 };
 
 export const updateEvent: RequestHandler = async (req, res) => {
-  res.json(await eventsService.updateEvent(req.params.id!, req.body));
+  res.json(await eventsService.updateEvent(req.params.id!, req.body, res.locals.user as AuthUser));
 };
 
 export const deleteEvent: RequestHandler = async (req, res) => {
-  res.json(await eventsService.deleteEvent(req.params.id!));
+  res.json(await eventsService.deleteEvent(req.params.id!, res.locals.user as AuthUser));
 };

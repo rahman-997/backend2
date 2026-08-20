@@ -1,9 +1,9 @@
 # Session 4 plan
 
-- [ ] Add JWT access-token authentication with HS256 pinned on sign and verify.
-- [ ] Add signup, login, and refresh routes with generic login/refresh failures.
-- [ ] Add opaque refresh-token hashing and atomic rotation in PostgreSQL.
-- [ ] Protect Event and Booking routes per the Session 4 policy matrix.
-- [ ] Add event and booking ownership checks with ADMIN event bypass.
-- [ ] Add a second seeded organizer and ownership proof test.
-- [ ] Keep secrets in the config env schema and response DTOs allowlisted.
+- [x] Add signup, login and refresh endpoints with rate limiting on /v1/auth.
+- [x] Sign and verify HS256 access JWTs with sub + role claims and a 15-minute lifetime.
+- [x] Store only SHA-256 refresh-token hashes and rotate tokens atomically.
+- [x] Apply route authentication and role policy to every Eventify endpoint.
+- [x] Enforce event ownership and booking ownership in the service layer.
+- [x] Add a second seeded organizer and a Supertest ownership regression test.
+- [x] Keep response DTOs explicit so passwordHash never crosses the wire.

@@ -1,37 +1,30 @@
 import { z } from "zod";
 import { Prisma } from "../generated/prisma/client.js";
+import type { AuthUser } from "../auth/tokens.js";
 import { prisma } from "../db/prisma.js";
 import { HttpError } from "../errors/http-error.js";
 import { bookingsRepository } from "./bookings.repository.js";
 
-export async function createBooking(userId: string, eventId: string) {
+export async function createBooking(actor: AuthUser, eventId: string) {
   try {
     return await prisma.$transaction(
       async (tx) => {
         const event = await tx.event.findUnique({ where: { id: eventId } });
         if (!event) throw new HttpError(404, "Event not found");
 
-        const confirmed = await tx.booking.count({
-          where: { eventId, status: "CONFIRMED" },
-        });
+        const confirmed = await tx.booking.count({ where: { eventId, status: "CONFIRMED" } });
         if (confirmed >= event.capacity) throw new HttpError(409, "Event is at capacity");
 
         const existing = await tx.booking.findUnique({
-          where: { userId_eventId: { userId, eventId } },
+          where: { userId_eventId: { userId: actor.sub, eventId } },
         });
 
         if (existing?.status === "CANCELLED") {
-          return tx.booking.update({
-            where: { id: existing.id },
-            data: { status: "CONFIRMED" },
-          });
+          return tx.booking.update({ where: { id: existing.id }, data: { status: "CONFIRMED" } });
         }
-
         if (existing?.status === "WAITLISTED") return existing;
 
-        return tx.booking.create({
-          data: { userId, eventId, status: "CONFIRMED" },
-        });
+        return tx.booking.create({ data: { userId: actor.sub, eventId, status: "CONFIRMED" } });
       },
       { isolationLevel: "Serializable" },
     );
@@ -44,14 +37,18 @@ export async function createBooking(userId: string, eventId: string) {
   }
 }
 
-export async function getBooking(id: string) {
+export async function getBooking(id: string, actor: AuthUser) {
   if (!z.uuid().safeParse(id).success) throw new HttpError(404, "Booking not found");
   const booking = await bookingsRepository.findById(id);
   if (!booking) throw new HttpError(404, "Booking not found");
+  if (booking.userId !== actor.sub && actor.role !== "ADMIN") throw new HttpError(403, "Forbidden");
   return booking;
 }
 
-export async function cancelBooking(id: string) {
-  await getBooking(id);
+export async function cancelBooking(id: string, actor: AuthUser) {
+  if (!z.uuid().safeParse(id).success) throw new HttpError(404, "Booking not found");
+  const booking = await bookingsRepository.findById(id);
+  if (!booking) throw new HttpError(404, "Booking not found");
+  if (booking.userId !== actor.sub) throw new HttpError(403, "Forbidden");
   return bookingsRepository.cancel(id);
 }

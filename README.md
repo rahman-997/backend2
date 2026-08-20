@@ -1,4 +1,4 @@
-# Eventify — Session 3
+# Eventify — Session 4
 
 ```bash
 cp .env.example .env
@@ -10,18 +10,12 @@ npx prisma db seed
 npm run dev
 ```
 
-In another terminal:
+Run the ownership proof after seeding:
 
 ```bash
-node scripts/parallel-bookings.ts
+npm test
 ```
 
-Expected capacity proof: never more than five `201` responses for the capacity-5 event.
+Policy decision for `GET /v1/bookings/:id`: it requires authentication and allows only the booking owner or an ADMIN, because exposing another attendee's booking would be an object-level authorization failure.
 
-Index proof commands:
-
-```sql
-EXPLAIN ANALYZE SELECT * FROM "Booking" WHERE "userId" = '<user-id>';
-CREATE INDEX "Booking_userId_idx" ON "Booking"("userId");
-EXPLAIN ANALYZE SELECT * FROM "Booking" WHERE "userId" = '<user-id>';
-```
+`GET /v1/events` and `GET /v1/events/:id` remain public because event discovery is public catalog data; all mutations are authenticated and authorization is enforced separately.
