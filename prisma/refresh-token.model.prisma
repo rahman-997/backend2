@@ -10,7 +10,7 @@ model RefreshToken {
   replacedById String?   @unique @db.Uuid
   createdAt    DateTime  @default(now())
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id])
   replacedBy   RefreshToken? @relation("RefreshTokenRotation", fields: [replacedById], references: [id])
   replaces     RefreshToken? @relation("RefreshTokenRotation")
 
