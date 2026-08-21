@@ -20,7 +20,6 @@ app.set("trust proxy", config.TRUST_PROXY_HOPS);
 app.use(requestObservability);
 app.use(
   helmet({
-    contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "same-site" },
   }),
 );
