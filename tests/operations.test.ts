@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest";
 import { app } from "../src/app.js";
 
 describe("production operational contract", () => {
+  it("serves a lightweight root probe for platform routing checks", async () => {
+    const response = await request(app).get("/").expect(200);
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.body).toEqual({
+      service: "eventify-api",
+      status: "ok",
+      health: "/health",
+      readiness: "/ready",
+    });
+  });
+
   it("returns liveness and echoes a safe request id", async () => {
     const response = await request(app)
       .get("/health")
