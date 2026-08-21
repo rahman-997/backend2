@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
+import { migrationRetryDelay } from "./migration-backoff.mjs";
 
 const MAX_MIGRATION_ATTEMPTS = Number(process.env.MIGRATION_MAX_ATTEMPTS ?? 6);
 const RETRY_DELAY_MS = Number(process.env.MIGRATION_RETRY_DELAY_MS ?? 5000);
+const RETRY_MAX_DELAY_MS = Number(process.env.MIGRATION_RETRY_MAX_DELAY_MS ?? 30000);
+const RETRY_JITTER_RATIO = Number(process.env.MIGRATION_RETRY_JITTER_RATIO ?? 0.2);
 const PRISMA_CLI = "node_modules/prisma/build/index.js";
 
 function run(command, args) {
@@ -30,8 +33,14 @@ for (let attempt = 1; attempt <= MAX_MIGRATION_ATTEMPTS; attempt += 1) {
   }
 
   if (attempt < MAX_MIGRATION_ATTEMPTS) {
-    console.warn(`[startup] Migration attempt failed; retrying in ${RETRY_DELAY_MS}ms`);
-    await sleep(RETRY_DELAY_MS);
+    const retryDelayMs = migrationRetryDelay({
+      attempt,
+      baseDelayMs: RETRY_DELAY_MS,
+      maxDelayMs: RETRY_MAX_DELAY_MS,
+      jitterRatio: RETRY_JITTER_RATIO,
+    });
+    console.warn(`[startup] Migration attempt failed; retrying in ${retryDelayMs}ms`);
+    await sleep(retryDelayMs);
   }
 }
 
