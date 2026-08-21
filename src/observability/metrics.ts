@@ -10,13 +10,16 @@ function escapeLabel(value: string): string {
 }
 
 function httpLabels(key: HttpKey): string {
-  const [method, route, status] = key.split("|");
+  const parts = key.split("|");
+  const method = parts[0] ?? "UNKNOWN";
+  const route = parts[1] ?? "/";
+  const status = parts[2] ?? "0";
   return `method="${escapeLabel(method)}",route="${escapeLabel(route)}",status="${status}"`;
 }
 
 export function normalizeMetricRoute(path: string): string {
-  return path
-    .split("?")[0]
+  const cleanPath = path.split("?")[0] ?? "/";
+  return cleanPath
     .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?=\/|$)/gi, "/:id")
     .replace(/\/\d+(?=\/|$)/g, "/:id");
 }
