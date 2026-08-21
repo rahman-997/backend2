@@ -30,7 +30,7 @@ describe("migrationRetryDelay", () => {
     expect(high).toBe(12_000);
   });
 
-  it("normalizes unsafe values instead of producing negative or infinite delays", () => {
+  it("normalizes unsafe values to finite safe defaults", () => {
     expect(
       migrationRetryDelay({
         attempt: Number.NaN,
@@ -39,6 +39,6 @@ describe("migrationRetryDelay", () => {
         jitterRatio: 2,
         random: () => -10,
       }),
-    ).toBe(0);
+    ).toBe(5_000);
   });
 });
