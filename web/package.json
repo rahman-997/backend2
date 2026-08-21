@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "bundle:check": "node scripts/check-bundle.mjs",
-    "verify": "npm run build && npm run bundle:check",
+    "pwa:check": "node scripts/check-pwa.mjs",
+    "verify": "npm run build && npm run bundle:check && npm run pwa:check",
     "start": "node server.mjs"
   },
   "dependencies": {

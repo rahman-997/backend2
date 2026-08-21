@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Eventify</title>
+  <desc id="desc">Eventify app icon</desc>
+  <rect width="512" height="512" rx="120" fill="#0b1020"/>
+  <circle cx="384" cy="128" r="72" fill="#8a5cff" opacity="0.95"/>
+  <path d="M112 120h232v72H184v56h136v68H184v76h168v72H112z" fill="#f8fafc"/>
+  <circle cx="384" cy="384" r="48" fill="#45e0a8"/>
+</svg>
