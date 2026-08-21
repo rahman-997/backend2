@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { config } from "../config.js";
+import { logger } from "../observability/logger.js";
+import { recordCacheResult } from "../observability/metrics.js";
 import { redis } from "../redis/client.js";
 
 const LIST_VERSION_KEY = "eventify:cache:events:version";
@@ -19,22 +21,36 @@ function queryDigest(query: unknown): string {
   return createHash("sha256").update(JSON.stringify(query)).digest("hex").slice(0, 24);
 }
 
+function jitteredTtl(ttlSeconds: number): number {
+  if (config.CACHE_TTL_JITTER_PERCENT === 0) return ttlSeconds;
+  const range = ttlSeconds * (config.CACHE_TTL_JITTER_PERCENT / 100);
+  const jitter = Math.round((Math.random() * 2 - 1) * range);
+  return Math.max(1, ttlSeconds + jitter);
+}
+
 async function readJson<T>(key: string): Promise<T | null> {
   try {
     const raw = await redis.get(key);
-    return raw ? (JSON.parse(raw) as T) : null;
+    if (!raw) {
+      recordCacheResult("miss");
+      return null;
+    }
+    recordCacheResult("hit");
+    return JSON.parse(raw) as T;
   } catch (error) {
-    console.error("[cache] read failed", error instanceof Error ? error.message : String(error));
+    recordCacheResult("error");
+    logger.warn("cache.read_failed", { key, error });
     return null;
   }
 }
 
 async function writeJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
   try {
-    // Every cache write has a TTL. A cache key that never dies is a bug.
-    await redis.set(key, JSON.stringify(value), "EX", ttlSeconds);
+    // Every cache write has a bounded TTL; jitter avoids many hot keys expiring simultaneously.
+    await redis.set(key, JSON.stringify(value), "EX", jitteredTtl(ttlSeconds));
   } catch (error) {
-    console.error("[cache] write failed", error instanceof Error ? error.message : String(error));
+    recordCacheResult("error");
+    logger.warn("cache.write_failed", { key, error });
   }
 }
 
@@ -48,31 +64,33 @@ async function cacheAside<T>(key: string, ttlSeconds: number, loader: () => Prom
   try {
     ownsLock = (await redis.set(lockKey, token, "PX", LOCK_TTL_MS, "NX")) === "OK";
   } catch {
-    // Redis is an optimization here; the database remains the source of truth.
+    recordCacheResult("error");
+    // Redis is an optimization; PostgreSQL remains the source of truth.
   }
 
   if (!ownsLock) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      await sleep(50 * (attempt + 1));
+      await sleep(40 * 2 ** attempt);
       const filled = await readJson<T>(key);
       if (filled !== null) return filled;
     }
+    recordCacheResult("load");
     return loader();
   }
 
   try {
-    // Double-check after winning the lock: another request may have filled the key
-    // between our first GET and SET NX.
+    // Double-check after winning the lock in case another request filled the key.
     const filled = await readJson<T>(key);
     if (filled !== null) return filled;
+    recordCacheResult("load");
     const value = await loader();
     await writeJson(key, value, ttlSeconds);
     return value;
   } finally {
     try {
       await redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
-    } catch {
-      // The lock has a short TTL, so a failed cleanup cannot become permanent.
+    } catch (error) {
+      logger.debug("cache.lock_release_failed", { key, error });
     }
   }
 }
@@ -83,7 +101,7 @@ export const eventCache = {
     try {
       version = (await redis.get(LIST_VERSION_KEY)) ?? "0";
     } catch {
-      // cacheAside will fail open to the loader as well.
+      recordCacheResult("error");
     }
     const key = `eventify:cache:events:list:${version}:${queryDigest(query)}`;
     return cacheAside(key, config.CACHE_LIST_TTL_SECONDS, loader);
@@ -97,7 +115,8 @@ export const eventCache = {
     try {
       await redis.incr(LIST_VERSION_KEY);
     } catch (error) {
-      console.error("[cache] collection invalidation failed", error instanceof Error ? error.message : String(error));
+      recordCacheResult("error");
+      logger.warn("cache.collection_invalidation_failed", { error });
     }
   },
 
@@ -105,7 +124,8 @@ export const eventCache = {
     try {
       await redis.multi().del(`${DETAIL_PREFIX}${id}`).incr(LIST_VERSION_KEY).exec();
     } catch (error) {
-      console.error("[cache] event invalidation failed", error instanceof Error ? error.message : String(error));
+      recordCacheResult("error");
+      logger.warn("cache.event_invalidation_failed", { eventId: id, error });
     }
   },
 };

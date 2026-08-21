@@ -3,11 +3,13 @@ import { Queue, Worker, type Job } from "bullmq";
 import { z } from "zod";
 import { eventCache } from "../cache/event-cache.js";
 import { config } from "../config.js";
+import { databaseHealth } from "../db/health.js";
 import { prisma } from "../db/prisma.js";
 import { withSerializationRetry } from "../db/serialization.js";
-import { closeRedis, createQueueRedis, createWorkerRedis } from "../redis/client.js";
+import { logger } from "../observability/logger.js";
+import { closeRedis, createQueueRedis, createWorkerRedis, writeWorkerHeartbeat } from "../redis/client.js";
 import { sendBookingConfirmation } from "./email.js";
-import { dispatchOutbox, markOutboxFailed, markOutboxSent } from "./outbox.js";
+import { dispatchOutbox, markOutboxFailed, markOutboxSent, purgeDeliveredOutbox } from "./outbox.js";
 
 const QUEUE_NAME = "eventify-background";
 const producerConnection = createQueueRedis();
@@ -62,7 +64,10 @@ async function promoteWaitlist(job: Job): Promise<void> {
       { isolationLevel: "Serializable" },
     ),
   );
-  if (promoted > 0) await eventCache.invalidateEvent(eventId);
+  if (promoted > 0) {
+    logger.info("worker.waitlist_promoted", { component: "worker", eventId, promoted });
+    await eventCache.invalidateEvent(eventId);
+  }
 }
 
 const worker = new Worker(
@@ -76,53 +81,132 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-  if (job.id) void markOutboxSent(job.id).catch((error) => console.error("[outbox] mark sent failed", error));
+  logger.info("worker.job_completed", { component: "worker", jobId: job.id, name: job.name, attemptsMade: job.attemptsMade });
+  if (job.id) void markOutboxSent(job.id).catch((error) => logger.error("outbox.mark_sent_failed", { component: "worker", error }));
 });
 worker.on("failed", (job, error) => {
-  console.error("[worker] job failed", { jobId: job?.id ?? "unknown", message: error.message });
+  logger.error("worker.job_failed", {
+    component: "worker",
+    jobId: job?.id ?? "unknown",
+    name: job?.name,
+    attemptsMade: job?.attemptsMade,
+    error,
+  });
   const attempts = job?.opts.attempts ?? 1;
   if (job?.id && job.attemptsMade >= attempts) {
-    void markOutboxFailed(job.id, error).catch((markError) => console.error("[outbox] mark failed failed", markError));
+    void markOutboxFailed(job.id, error).catch((markError) => logger.error("outbox.mark_failed_failed", { component: "worker", error: markError }));
   }
 });
-worker.on("error", (error) => console.error("[worker]", error));
+worker.on("error", (error) => logger.error("worker.runtime_error", { component: "worker", error }));
 
 let dispatching = false;
 async function tick() {
   if (dispatching) return;
   dispatching = true;
   try {
-    await dispatchOutbox(queue);
+    const dispatched = await dispatchOutbox(queue);
+    if (dispatched > 0) logger.info("outbox.dispatched", { component: "worker", dispatched });
   } catch (error) {
-    console.error("[outbox] dispatch failed", error instanceof Error ? error.message : String(error));
+    logger.error("outbox.dispatch_failed", { component: "worker", error });
   } finally {
     dispatching = false;
   }
 }
 
-await tick();
+async function heartbeat() {
+  try {
+    await writeWorkerHeartbeat(workerConnection);
+  } catch (error) {
+    logger.warn("worker.heartbeat_failed", { component: "worker", error });
+  }
+}
+
+async function maintenance() {
+  try {
+    const purged = await purgeDeliveredOutbox();
+    if (purged > 0) logger.info("outbox.retention_purged", { component: "worker", purged });
+  } catch (error) {
+    logger.warn("outbox.retention_failed", { component: "worker", error });
+  }
+}
+
+await Promise.all([tick(), heartbeat(), maintenance()]);
 const pollTimer = setInterval(() => void tick(), config.OUTBOX_POLL_MS);
 pollTimer.unref();
+const heartbeatEveryMs = Math.max(5_000, Math.floor((config.WORKER_HEARTBEAT_TTL_SECONDS * 1_000) / 3));
+const heartbeatTimer = setInterval(() => void heartbeat(), heartbeatEveryMs);
+heartbeatTimer.unref();
+const maintenanceTimer = setInterval(() => void maintenance(), 60 * 60 * 1_000);
+maintenanceTimer.unref();
 
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "0.0.0.0";
-const healthServer = http.createServer((_req, res) => {
-  res.writeHead(200, { "content-type": "application/json" });
-  res.end(JSON.stringify({ status: "ok", worker: "eventify-background" }));
+const healthServer = http.createServer(async (req, res) => {
+  res.setHeader("cache-control", "no-store");
+  res.setHeader("content-type", "application/json; charset=utf-8");
+
+  if (req.url === "/ready") {
+    const [database, redisReady] = await Promise.all([
+      databaseHealth(),
+      workerConnection.ping().then((value) => value === "PONG").catch(() => false),
+    ]);
+    const ready = database && redisReady;
+    res.writeHead(ready ? 200 : 503);
+    res.end(JSON.stringify({ status: ready ? "ready" : "degraded", database, redis: redisReady }));
+    return;
+  }
+
+  if (req.url === "/metrics") {
+    const counts = await queue.getJobCounts("waiting", "active", "delayed", "failed", "completed");
+    res.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+    res.writeHead(200);
+    res.end(
+      [
+        "# HELP eventify_worker_up Worker process status.",
+        "# TYPE eventify_worker_up gauge",
+        "eventify_worker_up 1",
+        ...Object.entries(counts).map(([state, count]) => `eventify_worker_jobs{state="${state}"} ${count}`),
+        "",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  res.writeHead(200);
+  res.end(JSON.stringify({ status: "ok", worker: QUEUE_NAME, uptime: Math.round(process.uptime()) }));
 });
-healthServer.listen(port, host, () => console.log(`Eventify worker health on http://${host}:${port}`));
+healthServer.listen(port, host, () => logger.info("worker.started", { component: "worker", host, port, queue: QUEUE_NAME }));
 
 let stopping = false;
 async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
-  console.log(`[worker] shutting down: ${signal}`);
+  logger.info("worker.shutdown_started", { component: "worker", signal });
   clearInterval(pollTimer);
+  clearInterval(heartbeatTimer);
+  clearInterval(maintenanceTimer);
   healthServer.close();
+
+  const timeout = setTimeout(() => {
+    logger.error("worker.shutdown_forced", { component: "worker", signal });
+    process.exit(1);
+  }, config.SHUTDOWN_GRACE_MS);
+  timeout.unref();
+
   await worker.close();
   await queue.close();
   await Promise.allSettled([producerConnection.quit(), workerConnection.quit(), closeRedis(), prisma.$disconnect()]);
+  clearTimeout(timeout);
+  logger.info("worker.shutdown_complete", { component: "worker", signal });
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  logger.error("worker.unhandled_rejection", { component: "worker", reason });
+  void shutdown("unhandledRejection");
+});
+process.on("uncaughtException", (error) => {
+  logger.error("worker.uncaught_exception", { component: "worker", error });
+  void shutdown("uncaughtException");
+});

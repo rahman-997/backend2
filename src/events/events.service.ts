@@ -12,7 +12,18 @@ function enrichAvailability<T extends { capacity: number; _count: { bookings: nu
   return { ...rest, confirmedBookings, remainingSeats, soldOut: remainingSeats === 0 };
 }
 
+function startTimestamp(startsAt: string | Date): number {
+  return new Date(startsAt).getTime();
+}
+
+function assertFutureStart(startsAt: string | Date): void {
+  if (startTimestamp(startsAt) <= Date.now()) {
+    throw new HttpError(409, "Event start time must be in the future");
+  }
+}
+
 export async function createEvent(input: EventCreateInput, actor: AuthUser) {
+  assertFutureStart(input.startsAt);
   const created = await eventsRepository.create(input, actor.sub);
   await eventCache.invalidateCollection();
   return created;
@@ -64,6 +75,13 @@ export async function getEventStats(id: string, actor: AuthUser) {
 export async function updateEvent(id: string, patch: Partial<EventCreateInput>, actor: AuthUser) {
   const event = await getEvent(id);
   assertEventOwner(event, actor);
+
+  if (startTimestamp(event.startsAt) <= Date.now()) throw new HttpError(409, "Started events can no longer be edited");
+  if (patch.startsAt !== undefined) assertFutureStart(patch.startsAt);
+  if (patch.capacity !== undefined && patch.capacity < event.confirmedBookings) {
+    throw new HttpError(409, `Capacity cannot be lower than ${event.confirmedBookings} confirmed bookings`);
+  }
+
   const updated = await eventsRepository.update(id, patch);
   await eventCache.invalidateEvent(id);
   return updated;
@@ -72,6 +90,15 @@ export async function updateEvent(id: string, patch: Partial<EventCreateInput>, 
 export async function deleteEvent(id: string, actor: AuthUser) {
   const event = await getEvent(id);
   assertEventOwner(event, actor);
+
+  const grouped = await eventsRepository.bookingStats(id);
+  const activeBookings = grouped
+    .filter((row) => row.status === "CONFIRMED" || row.status === "WAITLISTED")
+    .reduce((total, row) => total + row._count._all, 0);
+  if (activeBookings > 0) {
+    throw new HttpError(409, "Events with confirmed or waitlisted bookings cannot be deleted");
+  }
+
   await eventsRepository.delete(id);
   await eventCache.invalidateEvent(id);
   return event;

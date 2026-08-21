@@ -7,25 +7,91 @@ import { bookingsRouter } from "./bookings/bookings.routes.js";
 import { config } from "./config.js";
 import { databaseHealth } from "./db/health.js";
 import { eventsRouter } from "./events/events.routes.js";
+import { HttpError } from "./errors/http-error.js";
 import { errorHandler } from "./middleware/error-handler.js";
-import { redisHealth } from "./redis/client.js";
+import { requestObservability } from "./middleware/request-observability.js";
+import { renderMetrics } from "./observability/metrics.js";
+import { redisHealth, workerHeartbeatHealth } from "./redis/client.js";
 
 export const app = express();
 
 app.disable("x-powered-by");
-app.use(helmet());
-app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
-app.use(express.json({ limit: "256kb" }));
+app.set("trust proxy", config.TRUST_PROXY_HOPS);
+app.use(requestObservability);
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "same-site" },
+  }),
+);
+
+const allowedOrigins = new Set(config.WEB_ORIGINS);
+app.use(
+  cors({
+    credentials: true,
+    maxAge: 86_400,
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new HttpError(403, "Origin is not allowed"));
+    },
+  }),
+);
+app.use(express.json({ limit: "256kb", strict: true }));
 app.use(cookieParser());
 
-app.get("/health", (_req, res) => res.json({ status: "ok", uptime: Math.round(process.uptime()) }));
-app.get("/ready", async (_req, res) => {
-  const [database, redis] = await Promise.all([databaseHealth(), redisHealth()]);
-  const ready = database && redis;
-  res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "degraded", database, redis });
+app.get("/health", (_req, res) => {
+  res.setHeader("cache-control", "no-store");
+  res.json({ status: "ok", uptime: Math.round(process.uptime()) });
 });
 
-app.use("/v1/auth", authRouter);
+async function timedProbe(probe: () => Promise<boolean>) {
+  const startedAt = performance.now();
+  try {
+    const ok = await Promise.race([
+      probe(),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2_500)),
+    ]);
+    return { ok, latencyMs: Number((performance.now() - startedAt).toFixed(2)) };
+  } catch {
+    return { ok: false, latencyMs: Number((performance.now() - startedAt).toFixed(2)) };
+  }
+}
+
+app.get("/ready", async (_req, res) => {
+  res.setHeader("cache-control", "no-store");
+  const [databaseCheck, redisCheck, workerCheck] = await Promise.all([
+    timedProbe(databaseHealth),
+    timedProbe(redisHealth),
+    timedProbe(workerHeartbeatHealth),
+  ]);
+  const ready = databaseCheck.ok && redisCheck.ok;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "degraded",
+    database: databaseCheck.ok,
+    redis: redisCheck.ok,
+    worker: workerCheck.ok,
+    checks: {
+      database: databaseCheck,
+      redis: redisCheck,
+      backgroundWorker: workerCheck,
+    },
+  });
+});
+
+if (config.METRICS_ENABLED) {
+  app.get("/metrics", (_req, res) => {
+    res.setHeader("cache-control", "no-store");
+    res.type("text/plain; version=0.0.4; charset=utf-8").send(renderMetrics());
+  });
+}
+
+app.use("/v1/auth", (_req, res, next) => {
+  res.setHeader("cache-control", "no-store");
+  next();
+}, authRouter);
 app.use("/v1/events", eventsRouter);
 app.use("/v1/bookings", bookingsRouter);
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
 app.use(errorHandler);

@@ -45,6 +45,7 @@ jobs:
       WEB_ORIGIN: http://localhost:5173
       AUTH_RATE_LIMIT_MAX: 10000
       EMAIL_MODE: log
+      METRICS_ENABLED: "true"
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -54,6 +55,9 @@ jobs:
 
       - name: Install API dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
 
       - name: Apply database migrations
         run: npx prisma migrate deploy
@@ -76,8 +80,10 @@ jobs:
           cleanup() { kill "$worker_pid" 2>/dev/null || true; }
           trap cleanup EXIT
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3010/health > /tmp/worker-health.json; then
-              cat /tmp/worker-health.json
+            if curl --fail --silent http://127.0.0.1:3010/ready > /tmp/worker-ready.json; then
+              cat /tmp/worker-ready.json
+              curl --fail --silent http://127.0.0.1:3010/health
+              curl --fail --silent http://127.0.0.1:3010/metrics | grep eventify_worker_up
               exit 0
             fi
             if ! kill -0 "$worker_pid" 2>/dev/null; then
@@ -93,9 +99,9 @@ jobs:
         working-directory: web
         run: npm install --no-audit --no-fund
 
-      - name: Build frontend
+      - name: Verify frontend and bundle budget
         working-directory: web
-        run: npm run build
+        run: npm run verify
 
       - name: Dependency audit
         run: npm audit --audit-level=high

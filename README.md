@@ -1,12 +1,14 @@
 # Eventify
 
-Eventify is the cumulative Backend Track project through Session 5: strict TypeScript, Express 5 + Zod 4, PostgreSQL/Prisma, secure authentication, Redis cache/rate limits, and BullMQ background jobs.
+Eventify is the cumulative Backend Track project evolved into a production-oriented event platform: strict TypeScript, Express 5 + Zod 4, PostgreSQL/Prisma, secure authentication, Redis cache/rate limits, BullMQ background jobs, a React/Vite web client, operational health checks, request correlation, metrics, and automated security gates.
 
 ## Architecture
 
 `route → controller → service → repository/data source`
 
-PostgreSQL is authoritative. Redis is shared ephemeral infrastructure for cache-aside reads, distributed throttling and BullMQ. Booking side effects use a PostgreSQL outbox so a Redis restart cannot silently lose the intent to send a confirmation or promote a waitlisted attendee.
+PostgreSQL is authoritative. Redis is shared ephemeral infrastructure for cache-aside reads, distributed throttling, worker heartbeat, and BullMQ. Booking side effects use a PostgreSQL outbox so a Redis restart cannot silently lose the intent to send a confirmation or promote a waitlisted attendee.
+
+The v1 runtime adds structured JSON logs, request IDs, low-cardinality Prometheus metrics, dependency latency probes, bounded HTTP timeouts, graceful shutdown, Redis connection naming/backoff, cache TTL jitter, outbox retention, worker readiness and queue metrics, plus indexes for the hottest production query paths.
 
 ## Fresh clone
 
@@ -34,17 +36,26 @@ npm install
 npm run dev
 ```
 
-## Important endpoints
+## Operational endpoints
 
-- `GET /health` — liveness only
-- `GET /ready` — PostgreSQL + Redis readiness
+- `GET /health` — process liveness only
+- `GET /ready` — PostgreSQL + Redis readiness, dependency latency, and worker-heartbeat visibility
+- `GET /metrics` — Prometheus-compatible API process/request/cache metrics
+- worker `GET /health` — worker process liveness
+- worker `GET /ready` — worker PostgreSQL + Redis readiness
+- worker `GET /metrics` — queue state gauges
+
+Every API response includes `x-request-id`; a safe inbound request ID is preserved to correlate browser, edge, API and structured logs.
+
+## Product endpoints
+
 - `POST /v1/auth/signup`, `/login`, `/refresh`, `/logout`; `GET /v1/auth/me`
 - `GET /v1/events` — public search/filter/pagination, cache-aside
 - `GET /v1/events/:id` — cached public detail
 - protected organizer create/update/delete, `/v1/events/mine`, and `/:id/stats`
 - `POST /v1/bookings`, `GET /v1/bookings/mine`, item read/cancel
 
-At capacity a new booking becomes `WAITLISTED`. Cancelling a confirmed booking creates a durable promotion job; the worker promotes the oldest waitlisted rows when seats are available.
+At capacity a new booking becomes `WAITLISTED`. Cancelling a confirmed booking creates a durable promotion job; the worker promotes the oldest waitlisted rows when seats are available. Event lifecycle guards reject past event creation, prevent capacity from dropping below confirmed demand, and block destructive deletion while active bookings remain.
 
 ## Security
 
@@ -53,23 +64,28 @@ At capacity a new booking becomes `WAITLISTED`. Cancelling a confirmed booking c
 - 15-minute HS256 access JWTs; opaque hashed refresh tokens rotate on every refresh.
 - Refresh replay revokes the replacement chain.
 - Access token belongs in memory; refresh token is an HttpOnly + Secure + SameSite cookie.
-- Helmet, explicit credentialed CORS, Redis-backed auth rate limits and per-account lockout.
+- Helmet, explicit credentialed CORS allowlists, Redis-backed auth rate limits and per-account lockout.
 - Event ownership and booking ownership are enforced server-side.
+- Structured logging redacts known credential/token fields and production errors never return stack traces.
 
 ## Cache + async jobs
 
-Event lists and details use cache-aside with mandatory TTLs, short distributed miss locks, and write invalidation. Cache failures fall back to PostgreSQL.
+Event lists and details use cache-aside with mandatory TTLs, TTL jitter, short distributed miss locks, and write invalidation. Cache failures fall back to PostgreSQL.
 
-BullMQ jobs use retries with exponential backoff. `EMAIL_MODE=log` is the safe default; set `EMAIL_MODE=smtp` and inject `SMTP_URL` as a secret to deliver real email.
+BullMQ jobs use retries with exponential backoff. The durable outbox re-dispatches stale enqueue attempts and purges delivered records after the configured retention period. `EMAIL_MODE=log` is the safe default; set `EMAIL_MODE=smtp` and inject `SMTP_URL` as a secret to deliver real email.
+
+## Web runtime
+
+The React/Vite client includes live backend connectivity feedback, offline/degraded-state messaging, a top-level error boundary, keyboard focus affordances, a skip link, reduced-motion support, and a build-time JavaScript/CSS bundle budget. Legacy duplicate frontend files were removed so there is one active interface implementation.
 
 ## Verification
 
 ```bash
 npm run verify
 npm audit --audit-level=high
-cd web && npm run build && npm audit --audit-level=high
+cd web && npm run verify && npm audit --audit-level=high
 ```
 
-`npm run verify` includes Prisma generation, strict type checking, Vitest integration tests, the production build, and dependency-cruiser architecture rules. GitHub Actions also runs Semgrep CE and CodeQL.
+`npm run verify` includes Prisma generation, strict type checking, Vitest integration tests, the production build, and dependency-cruiser architecture rules. CI also validates Prisma migrations, boots the BullMQ worker and probes `/health`, `/ready`, and `/metrics`, enforces the frontend bundle budget, runs dependency audits, Semgrep CE, and CodeQL.
 
 See `AGENTS.md`, `tasks/todo.md`, `docs/security-triage.md`, and the `labs/` directory for the course-specific implementation artifacts.
