@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1020" />
+    <title>Eventify — Offline</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #0b1020; color: #f8fafc; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top right, #33245f 0, #0b1020 42%); }
+      main { width: min(520px, 100%); padding: 32px; border: 1px solid rgba(255,255,255,.12); border-radius: 24px; background: rgba(10,16,32,.82); box-shadow: 0 24px 80px rgba(0,0,0,.3); }
+      .mark { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: #8a5cff; font-weight: 900; font-size: 28px; }
+      h1 { margin: 24px 0 12px; font-size: clamp(2rem, 8vw, 3rem); line-height: 1; }
+      p { margin: 0 0 24px; color: #bcc6d9; line-height: 1.6; }
+      a { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; padding: 0 18px; border-radius: 12px; background: #f8fafc; color: #0b1020; text-decoration: none; font-weight: 800; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">E</div>
+      <h1>You’re offline.</h1>
+      <p>Eventify can still open its saved app shell, but live events, seat counts, authentication, and bookings need a network connection.</p>
+      <a href="/">Try again</a>
+    </main>
+  </body>
+</html>
