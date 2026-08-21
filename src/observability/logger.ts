@@ -34,33 +34,38 @@ function sanitize(value: unknown, depth = 0): unknown {
   return output;
 }
 
-function write(level: LogLevel, message: string, fields: LogFields = {}) {
-  const payload = {
-    timestamp: new Date().toISOString(),
-    level,
-    service: "eventify-api",
-    message,
-    requestId: getRequestId(),
-    ...sanitize(fields) as LogFields,
-  };
+export function createLogger(service: string) {
+  function write(level: LogLevel, message: string, fields: LogFields = {}) {
+    const payload = {
+      ...sanitize(fields) as LogFields,
+      timestamp: new Date().toISOString(),
+      level,
+      service,
+      message,
+      requestId: getRequestId(),
+    };
 
-  const line = JSON.stringify(payload);
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
-  else console.log(line);
+    const line = JSON.stringify(payload);
+    if (level === "error") console.error(line);
+    else if (level === "warn") console.warn(line);
+    else console.log(line);
+  }
+
+  return {
+    debug(message: string, fields?: LogFields) {
+      if (config.NODE_ENV !== "production") write("debug", message, fields);
+    },
+    info(message: string, fields?: LogFields) {
+      write("info", message, fields);
+    },
+    warn(message: string, fields?: LogFields) {
+      write("warn", message, fields);
+    },
+    error(message: string, fields?: LogFields) {
+      write("error", message, fields);
+    },
+  };
 }
 
-export const logger = {
-  debug(message: string, fields?: LogFields) {
-    if (config.NODE_ENV !== "production") write("debug", message, fields);
-  },
-  info(message: string, fields?: LogFields) {
-    write("info", message, fields);
-  },
-  warn(message: string, fields?: LogFields) {
-    write("warn", message, fields);
-  },
-  error(message: string, fields?: LogFields) {
-    write("error", message, fields);
-  },
-};
+export const logger = createLogger("eventify-api");
+export const workerLogger = createLogger("eventify-worker");
