@@ -38,6 +38,16 @@ app.use(
 app.use(express.json({ limit: "256kb", strict: true }));
 app.use(cookieParser());
 
+app.get("/", (_req, res) => {
+  res.setHeader("cache-control", "no-store");
+  res.json({
+    service: "eventify-api",
+    status: "ok",
+    health: "/health",
+    readiness: "/ready",
+  });
+});
+
 app.get("/health", (_req, res) => {
   res.setHeader("cache-control", "no-store");
   res.json({ status: "ok", uptime: Math.round(process.uptime()) });
