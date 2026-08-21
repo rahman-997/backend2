@@ -1,7 +1,7 @@
 import http from "node:http";
 import { Queue, Worker, type Job } from "bullmq";
 import { z } from "zod";
-import { eventCache } from "../cache/event-cache.js";
+import { invalidateEventCache } from "../cache/event-cache-invalidation.js";
 import { config } from "../config.js";
 import { databaseHealth } from "../db/health.js";
 import { prisma } from "../db/prisma.js";
@@ -67,7 +67,11 @@ async function promoteWaitlist(job: Job): Promise<void> {
   );
   if (promoted > 0) {
     logger.info("worker.waitlist_promoted", { component: "worker", eventId, promoted });
-    await eventCache.invalidateEvent(eventId);
+    try {
+      await invalidateEventCache(producerConnection, eventId);
+    } catch (error) {
+      logger.warn("cache.event_invalidation_failed", { component: "worker", eventId, error });
+    }
   }
 }
 

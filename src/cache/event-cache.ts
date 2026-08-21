@@ -3,9 +3,9 @@ import { config } from "../config.js";
 import { logger } from "../observability/logger.js";
 import { recordCacheResult } from "../observability/metrics.js";
 import { redis } from "../redis/client.js";
+import { invalidateEventCache } from "./event-cache-invalidation.js";
+import { EVENT_CACHE_LIST_VERSION_KEY, eventCacheDetailKey } from "./event-cache-keys.js";
 
-const LIST_VERSION_KEY = "eventify:cache:events:version";
-const DETAIL_PREFIX = "eventify:cache:event:";
 const LOCK_TTL_MS = 3_000;
 
 const RELEASE_LOCK_SCRIPT = `
@@ -99,7 +99,7 @@ export const eventCache = {
   async list<T>(query: unknown, loader: () => Promise<T>): Promise<T> {
     let version = "0";
     try {
-      version = (await redis.get(LIST_VERSION_KEY)) ?? "0";
+      version = (await redis.get(EVENT_CACHE_LIST_VERSION_KEY)) ?? "0";
     } catch {
       recordCacheResult("error");
     }
@@ -108,12 +108,12 @@ export const eventCache = {
   },
 
   detail<T>(id: string, loader: () => Promise<T>): Promise<T> {
-    return cacheAside(`${DETAIL_PREFIX}${id}`, config.CACHE_DETAIL_TTL_SECONDS, loader);
+    return cacheAside(eventCacheDetailKey(id), config.CACHE_DETAIL_TTL_SECONDS, loader);
   },
 
   async invalidateCollection(): Promise<void> {
     try {
-      await redis.incr(LIST_VERSION_KEY);
+      await redis.incr(EVENT_CACHE_LIST_VERSION_KEY);
     } catch (error) {
       recordCacheResult("error");
       logger.warn("cache.collection_invalidation_failed", { error });
@@ -122,7 +122,7 @@ export const eventCache = {
 
   async invalidateEvent(id: string): Promise<void> {
     try {
-      await redis.multi().del(`${DETAIL_PREFIX}${id}`).incr(LIST_VERSION_KEY).exec();
+      await invalidateEventCache(redis, id);
     } catch (error) {
       recordCacheResult("error");
       logger.warn("cache.event_invalidation_failed", { eventId: id, error });
