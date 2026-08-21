@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Eventify — Discover & Book Events",
+  "short_name": "Eventify",
+  "description": "Discover live events, book tickets securely, and manage every reservation from Eventify.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "categories": ["events", "entertainment", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore events",
+      "short_name": "Explore",
+      "url": "/#events"
+    },
+    {
+      "name": "My Eventify",
+      "short_name": "Dashboard",
+      "url": "/#dashboard"
+    }
+  ]
+}
