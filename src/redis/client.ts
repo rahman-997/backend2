@@ -1,8 +1,7 @@
 import { Redis } from "ioredis";
 import { config } from "../config.js";
 import { logger } from "../observability/logger.js";
-
-const WORKER_HEARTBEAT_KEY = "eventify:worker:heartbeat";
+import { WORKER_HEARTBEAT_KEY } from "./keys.js";
 
 function baseOptions(connectionName: string) {
   return {
@@ -43,38 +42,10 @@ export async function workerHeartbeatHealth(): Promise<boolean> {
   }
 }
 
-export async function writeWorkerHeartbeat(connection: Redis): Promise<void> {
-  await connection.set(
-    WORKER_HEARTBEAT_KEY,
-    new Date().toISOString(),
-    "EX",
-    config.WORKER_HEARTBEAT_TTL_SECONDS,
-  );
-}
-
 export async function closeRedis(): Promise<void> {
   try {
     await redis.quit();
   } catch {
     redis.disconnect();
   }
-}
-
-export function createQueueRedis(): Redis {
-  const connection = new Redis(config.REDIS_URL, {
-    ...baseOptions("eventify-queue-producer"),
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
-  });
-  connection.on("error", (error: Error) => logger.warn("queue_redis.connection_error", { message: error.message }));
-  return connection;
-}
-
-export function createWorkerRedis(): Redis {
-  const connection = new Redis(config.REDIS_URL, {
-    ...baseOptions("eventify-worker"),
-    maxRetriesPerRequest: null,
-  });
-  connection.on("error", (error: Error) => logger.warn("worker_redis.connection_error", { message: error.message }));
-  return connection;
 }

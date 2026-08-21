@@ -7,7 +7,7 @@ import { databaseHealth } from "../db/health.js";
 import { prisma } from "../db/prisma.js";
 import { withSerializationRetry } from "../db/serialization.js";
 import { workerLogger as logger } from "../observability/logger.js";
-import { closeRedis, createQueueRedis, createWorkerRedis, writeWorkerHeartbeat } from "../redis/client.js";
+import { createQueueRedis, createWorkerRedis, writeWorkerHeartbeat } from "../redis/worker-client.js";
 import { sendBookingConfirmation } from "./email.js";
 import { dispatchOutbox, markOutboxFailed, markOutboxSent, purgeDeliveredOutbox } from "./outbox.js";
 import { nextOutboxPollDelay } from "./polling.js";
@@ -222,7 +222,7 @@ async function shutdown(signal: string) {
 
   await worker.close();
   await queue.close();
-  await Promise.allSettled([producerConnection.quit(), workerConnection.quit(), closeRedis(), prisma.$disconnect()]);
+  await Promise.allSettled([producerConnection.quit(), workerConnection.quit(), prisma.$disconnect()]);
   clearTimeout(timeout);
   logger.info("worker.shutdown_complete", { component: "worker", signal });
   process.exit(0);
