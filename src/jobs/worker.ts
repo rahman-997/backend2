@@ -6,10 +6,11 @@ import { config } from "../config.js";
 import { databaseHealth } from "../db/health.js";
 import { prisma } from "../db/prisma.js";
 import { withSerializationRetry } from "../db/serialization.js";
-import { logger } from "../observability/logger.js";
+import { workerLogger as logger } from "../observability/logger.js";
 import { closeRedis, createQueueRedis, createWorkerRedis, writeWorkerHeartbeat } from "../redis/client.js";
 import { sendBookingConfirmation } from "./email.js";
 import { dispatchOutbox, markOutboxFailed, markOutboxSent, purgeDeliveredOutbox } from "./outbox.js";
+import { nextOutboxPollDelay } from "./polling.js";
 
 const QUEUE_NAME = "eventify-background";
 const producerConnection = createQueueRedis();
@@ -100,14 +101,16 @@ worker.on("failed", (job, error) => {
 worker.on("error", (error) => logger.error("worker.runtime_error", { component: "worker", error }));
 
 let dispatching = false;
-async function tick() {
-  if (dispatching) return;
+async function tick(): Promise<number | null> {
+  if (dispatching) return null;
   dispatching = true;
   try {
     const dispatched = await dispatchOutbox(queue);
     if (dispatched > 0) logger.info("outbox.dispatched", { component: "worker", dispatched });
+    return dispatched;
   } catch (error) {
     logger.error("outbox.dispatch_failed", { component: "worker", error });
+    return null;
   } finally {
     dispatching = false;
   }
@@ -130,9 +133,30 @@ async function maintenance() {
   }
 }
 
-await Promise.all([tick(), heartbeat(), maintenance()]);
-const pollTimer = setInterval(() => void tick(), config.OUTBOX_POLL_MS);
-pollTimer.unref();
+const [initialDispatched] = await Promise.all([tick(), heartbeat(), maintenance()]);
+let currentPollMs = nextOutboxPollDelay({
+  baseMs: config.OUTBOX_POLL_MS,
+  maxIdleMs: config.OUTBOX_IDLE_MAX_POLL_MS,
+  currentMs: config.OUTBOX_POLL_MS,
+  dispatched: initialDispatched,
+});
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleNextPoll() {
+  pollTimer = setTimeout(async () => {
+    const dispatched = await tick();
+    currentPollMs = nextOutboxPollDelay({
+      baseMs: config.OUTBOX_POLL_MS,
+      maxIdleMs: config.OUTBOX_IDLE_MAX_POLL_MS,
+      currentMs: currentPollMs,
+      dispatched,
+    });
+    scheduleNextPoll();
+  }, currentPollMs);
+  pollTimer.unref();
+}
+scheduleNextPoll();
+
 const heartbeatEveryMs = Math.max(5_000, Math.floor((config.WORKER_HEARTBEAT_TTL_SECONDS * 1_000) / 3));
 const heartbeatTimer = setInterval(() => void heartbeat(), heartbeatEveryMs);
 heartbeatTimer.unref();
@@ -165,6 +189,9 @@ const healthServer = http.createServer(async (req, res) => {
         "# HELP eventify_worker_up Worker process status.",
         "# TYPE eventify_worker_up gauge",
         "eventify_worker_up 1",
+        "# HELP eventify_worker_outbox_poll_interval_ms Current outbox poll interval in milliseconds.",
+        "# TYPE eventify_worker_outbox_poll_interval_ms gauge",
+        `eventify_worker_outbox_poll_interval_ms ${currentPollMs}`,
         ...Object.entries(counts).map(([state, count]) => `eventify_worker_jobs{state="${state}"} ${count}`),
         "",
       ].join("\n"),
@@ -182,7 +209,7 @@ async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   logger.info("worker.shutdown_started", { component: "worker", signal });
-  clearInterval(pollTimer);
+  if (pollTimer) clearTimeout(pollTimer);
   clearInterval(heartbeatTimer);
   clearInterval(maintenanceTimer);
   healthServer.close();
