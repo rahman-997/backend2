@@ -1,6 +1,6 @@
-# Eventify
+# Eventify 1.0
 
-Eventify is the cumulative Backend Track project evolved into a production-oriented event platform: strict TypeScript, Express 5 + Zod 4, PostgreSQL/Prisma, secure authentication, Redis cache/rate limits, BullMQ background jobs, a React/Vite web client, operational health checks, request correlation, metrics, and automated security gates.
+Eventify is the cumulative Backend Track project evolved into a production-oriented event platform: strict TypeScript, Express 5 + Zod 4, PostgreSQL/Prisma, secure authentication, Redis cache/rate limits, BullMQ background jobs, a React/Vite PWA, operational health checks, request correlation, metrics, and automated security gates.
 
 ## Architecture
 
@@ -74,9 +74,11 @@ Event lists and details use cache-aside with mandatory TTLs, TTL jitter, short d
 
 BullMQ jobs use retries with exponential backoff. The durable outbox re-dispatches stale enqueue attempts and purges delivered records after the configured retention period. `EMAIL_MODE=log` is the safe default; set `EMAIL_MODE=smtp` and inject `SMTP_URL` as a secret to deliver real email.
 
-## Web runtime
+## Installable web app
 
-The React/Vite client includes live backend connectivity feedback, offline/degraded-state messaging, a top-level error boundary, keyboard focus affordances, a skip link, reduced-motion support, and a build-time JavaScript/CSS bundle budget. Legacy duplicate frontend files were removed so there is one active interface implementation.
+Eventify Web is a PWA. The production build ships a manifest, install icon, install prompt, offline fallback and service worker. The service worker is deliberately conservative: it caches the public shell and hashed static assets but never intercepts `/api/*`, so authenticated sessions, event availability and booking mutations stay network-authoritative.
+
+The production web server sends long-lived immutable caching for hashed Vite assets while keeping HTML, the manifest and service-worker bootstrap revalidatable. It also adds browser hardening headers including CSP, Referrer Policy, Permissions Policy and `nosniff`.
 
 ## Verification
 
@@ -86,6 +88,6 @@ npm audit --audit-level=high
 cd web && npm run verify && npm audit --audit-level=high
 ```
 
-`npm run verify` includes Prisma generation, strict type checking, Vitest integration tests, the production build, and dependency-cruiser architecture rules. CI also validates Prisma migrations, boots the BullMQ worker and probes `/health`, `/ready`, and `/metrics`, enforces the frontend bundle budget, runs dependency audits, Semgrep CE, and CodeQL.
+`npm run verify` includes Prisma generation, strict type checking, Vitest integration tests, the production build, and dependency-cruiser architecture rules. The web verification additionally enforces bundle budgets and the PWA artifact contract. CI validates Prisma migrations, boots the BullMQ worker and probes `/health`, `/ready`, and `/metrics`, runs dependency audits, Semgrep CE, and CodeQL.
 
-See `AGENTS.md`, `tasks/todo.md`, `docs/security-triage.md`, and the `labs/` directory for the course-specific implementation artifacts.
+See `CHANGELOG.md`, `AGENTS.md`, `tasks/todo.md`, `docs/security-triage.md`, and the `labs/` directory for release and course-specific implementation artifacts.
