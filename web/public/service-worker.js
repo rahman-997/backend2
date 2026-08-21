@@ -1,11 +1,24 @@
 const SHELL_CACHE = "eventify-shell-v1";
 const STATIC_CACHE = "eventify-static-v1";
-const SHELL_URLS = ["/", "/offline.html", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_URLS = ["/offline.html", "/manifest.webmanifest", "/icon.svg", "/pwa-install.js", "/pwa-install.css"];
+
+async function precacheAppShell() {
+  const shellCache = await caches.open(SHELL_CACHE);
+  const response = await fetch("/", { cache: "no-cache" });
+  if (!response.ok) throw new Error(`Unable to precache Eventify shell (${response.status})`);
+
+  const html = await response.clone().text();
+  await shellCache.put("/", response);
+  await shellCache.addAll(SHELL_URLS);
+
+  const assetUrls = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1]);
+  const uniqueAssets = [...new Set(assetUrls)];
+  const staticCache = await caches.open(STATIC_CACHE);
+  await Promise.all(uniqueAssets.map((url) => staticCache.add(url)));
+}
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_URLS)).then(() => self.skipWaiting()),
-  );
+  event.waitUntil(precacheAppShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -53,7 +66,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || ["/icon.svg", "/manifest.webmanifest", "/offline.html"].includes(url.pathname)) {
+  if (
+    url.pathname.startsWith("/assets/") ||
+    ["/icon.svg", "/manifest.webmanifest", "/offline.html", "/pwa-install.js", "/pwa-install.css"].includes(url.pathname)
+  ) {
     event.respondWith(cacheFirstStatic(request));
   }
 });
